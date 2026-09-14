@@ -41,6 +41,7 @@ import { buildButton, buildDipSwitch, buildSlideSwitch } from './meshes/switches
 import { buildDip, buildSevenSeg } from './meshes/ics'
 import { buildBuzzer, buildInstrumentBox, buildProbe } from './meshes/instruments'
 import { buildMultimeter } from './meshes/multimeter'
+import { buildEsp32S3DevKit, buildTft5Inch } from './meshes/embedded'
 import { tryModelOverride } from './meshes/gltf-overrides'
 
 export interface BuiltComponent {
@@ -193,6 +194,12 @@ function dispatch(
         break
       case 'multimeter':
         if (pins.length >= 2) return buildMultimeter(comp, entry, pins)
+        break
+      case 'esp32s3':
+        if (pins.length >= 44) return buildEsp32S3DevKit(comp, entry, pins)
+        break
+      case 'tft5':
+        if (pins.length >= 2) return buildTft5Inch(comp, entry, pins)
         break
       case 'probe':
         if (pins.length >= 1) return buildProbe(comp, entry, pins)
