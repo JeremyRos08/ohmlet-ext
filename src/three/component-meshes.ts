@@ -4,7 +4,7 @@
  * Contract: build/refresh THREE.Object3D visuals for components.
  *
  * Coordinate conventions (see src/model/breadboard.ts):
- *  - 1 unit = one hole pitch (0.1"). Board top surface is y = 0.
+ *  - 1 unit = one hole pitch (0.1"). Board top surface at y = 0.
  *  - `pinPositions` are world positions of each pin's hole top (y=0) in
  *    catalog pin order; off-board components get their terminal posts.
  *  - The returned object must be positioned in world space by the builder
@@ -40,6 +40,7 @@ import { buildLed, buildTo92 } from './meshes/semis'
 import { buildButton, buildDipSwitch, buildSlideSwitch } from './meshes/switches'
 import { buildDip, buildSevenSeg } from './meshes/ics'
 import { buildBuzzer, buildInstrumentBox, buildProbe } from './meshes/instruments'
+import { buildMultimeter } from './meshes/multimeter'
 import { tryModelOverride } from './meshes/gltf-overrides'
 
 export interface BuiltComponent {
@@ -189,6 +190,9 @@ function dispatch(
         break
       case 'fungen':
         if (pins.length >= 1) return buildInstrumentBox(comp, entry, pins, 'fungen')
+        break
+      case 'multimeter':
+        if (pins.length >= 2) return buildMultimeter(comp, entry, pins)
         break
       case 'probe':
         if (pins.length >= 1) return buildProbe(comp, entry, pins)
