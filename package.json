@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "bench:sim": "vitest bench benchmarks"
+    "bench:sim": "vitest bench --run benchmarks"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "latest",
