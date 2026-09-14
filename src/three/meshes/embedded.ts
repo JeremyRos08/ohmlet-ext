@@ -11,11 +11,29 @@ import {
   topLabel,
 } from './shared'
 
-function makeBoardLabel(text: string, width: number, height: number): THREE.Object3D | null {
-  return topLabel(text, width, height, {
-    w: 512,
-    h: 96,
-    fg: '#eef6ef',
+function makeBoardLabel(text: string, width: number, height: number, fg = '#eef6ef'): THREE.Object3D | null {
+  return topLabel(text, width, height, { w: 512, h: 96, fg })
+}
+
+function roundedSlabGeometry(key: string, width: number, depth: number, height: number, radius = 0.45): THREE.ExtrudeGeometry {
+  return cachedGeometry(key, () => {
+    const w = width / 2
+    const d = depth / 2
+    const r = Math.min(radius, w, d)
+    const s = new THREE.Shape()
+    s.moveTo(-w + r, -d)
+    s.lineTo(w - r, -d)
+    s.quadraticCurveTo(w, -d, w, -d + r)
+    s.lineTo(w, d - r)
+    s.quadraticCurveTo(w, d, w - r, d)
+    s.lineTo(-w + r, d)
+    s.quadraticCurveTo(-w, d, -w, d - r)
+    s.lineTo(-w, -d + r)
+    s.quadraticCurveTo(-w, -d, -w + r, -d)
+    const g = new THREE.ExtrudeGeometry(s, { depth: height, bevelEnabled: false, curveSegments: 5 })
+    g.translate(0, 0, -height / 2)
+    g.rotateX(-Math.PI / 2)
+    return g
   })
 }
 
@@ -33,72 +51,139 @@ export function buildEsp32S3DevKit(
   const maxX = Math.max(...xs)
   const minZ = Math.min(...zs)
   const maxZ = Math.max(...zs)
-  const boardW = Math.max(4, maxX - minX + 1.45)
-  const boardD = Math.max(4, maxZ - minZ + 1.25)
+
+  // Headers now occupy breadboard rows b/i. Keep the board narrow enough that
+  // rows a/j remain visibly exposed and easy to click for jumpers.
+  const boardW = Math.max(22.2, maxX - minX + 1.2)
+  const boardD = Math.max(7.4, maxZ - minZ + 0.9)
+  const pcbY = 0.74
 
   const pcb = new THREE.Mesh(
-    new THREE.BoxGeometry(boardW, 0.22, boardD),
-    cachedMaterial('esp32s3-pcb', () =>
-      new THREE.MeshPhysicalMaterial({ color: 0x0d6a45, roughness: 0.62, metalness: 0.05 }),
+    roundedSlabGeometry(`esp32s3-pcb-rounded-${boardW.toFixed(1)}-${boardD.toFixed(1)}`, boardW, boardD, 0.22, 0.42),
+    cachedMaterial('esp32s3-pcb-refined', () =>
+      new THREE.MeshPhysicalMaterial({ color: 0x123f34, roughness: 0.58, metalness: 0.08, clearcoat: 0.18 }),
     ),
   )
-  pcb.position.set(c.x, 0.48, c.z)
+  pcb.position.set(c.x, pcbY, c.z)
   group.add(pcb)
 
-  const socketGeo = cachedGeometry('esp32s3-header-socket', () => new THREE.BoxGeometry(0.7, 0.42, 0.7))
-  const pinGeo = cachedGeometry('esp32s3-header-pin', () => new THREE.CylinderGeometry(0.07, 0.07, 0.7, 8))
-  const socketMat = plastic(0x111315, 0.62)
-  const pinMat = metal(0xd8b85b, 0.28)
+  // Long black header rails make the module read like the real DevKitC while
+  // the individual gold pins remain visible below and above the plastic.
+  const headerLen = maxX - minX + 0.8
+  const headerGeo = cachedGeometry(`esp32s3-header-rail-${headerLen.toFixed(1)}`, () => new THREE.BoxGeometry(headerLen, 0.42, 0.64))
+  const headerMat = plastic(0x101214, 0.52)
+  for (const z of [minZ, maxZ]) {
+    const rail = new THREE.Mesh(headerGeo, headerMat)
+    rail.position.set(c.x, pcbY + 0.18, z)
+    group.add(rail)
+  }
+
+  const pinGeo = cachedGeometry('esp32s3-refined-pin', () => new THREE.BoxGeometry(0.10, 0.95, 0.10))
+  const pinMat = metal(0xd8b04c, 0.22)
+  const collarGeo = cachedGeometry('esp32s3-pin-collar', () => new THREE.BoxGeometry(0.32, 0.08, 0.32))
   for (const p of pins) {
-    const socket = new THREE.Mesh(socketGeo, socketMat)
-    socket.position.set(p.x, 0.72, p.z)
-    group.add(socket)
+    const collar = new THREE.Mesh(collarGeo, pinMat)
+    collar.position.set(p.x, pcbY + 0.24, p.z)
+    group.add(collar)
     const pin = new THREE.Mesh(pinGeo, pinMat)
-    pin.position.set(p.x, 0.18, p.z)
+    pin.position.set(p.x, 0.38, p.z)
     group.add(pin)
   }
 
-  const module = new THREE.Mesh(
-    new THREE.BoxGeometry(Math.min(boardW * 0.42, 9.0), 0.48, Math.max(3.8, boardD - 2.1)),
-    cachedMaterial('esp32s3-module-shield', () =>
-      new THREE.MeshPhysicalMaterial({ color: 0xc4c7c4, roughness: 0.34, metalness: 0.74 }),
+  // WROOM module: dark carrier board, metal can and antenna keep-out.
+  const moduleW = Math.min(8.2, boardW * 0.37)
+  const moduleD = Math.min(boardD - 1.4, 6.2)
+  const moduleX = minX + moduleW / 2 + 1.05
+  const carrier = new THREE.Mesh(
+    roundedSlabGeometry('esp32s3-wroom-carrier', moduleW, moduleD, 0.16, 0.22),
+    cachedMaterial('esp32s3-wroom-pcb', () => new THREE.MeshStandardMaterial({ color: 0x102820, roughness: 0.75, metalness: 0.03 })),
+  )
+  carrier.position.set(moduleX, pcbY + 0.24, c.z)
+  group.add(carrier)
+
+  const shieldW = moduleW * 0.66
+  const shieldD = moduleD - 0.75
+  const shield = new THREE.Mesh(
+    roundedSlabGeometry('esp32s3-wroom-shield', shieldW, shieldD, 0.42, 0.12),
+    cachedMaterial('esp32s3-shield-refined', () =>
+      new THREE.MeshPhysicalMaterial({ color: 0xbec2c3, roughness: 0.27, metalness: 0.78, clearcoat: 0.1 }),
     ),
   )
-  module.position.set(minX + boardW * 0.27, 0.84, c.z)
-  group.add(module)
+  shield.position.set(moduleX + moduleW * 0.13, pcbY + 0.47, c.z)
+  group.add(shield)
 
-  const antenna = new THREE.Mesh(
-    new THREE.BoxGeometry(2.2, 0.06, Math.max(3.1, boardD - 2.6)),
-    cachedMaterial('esp32s3-antenna', () =>
-      new THREE.MeshStandardMaterial({ color: 0x122c22, roughness: 0.78, metalness: 0.05 }),
-    ),
-  )
-  antenna.position.set(minX + 1.15, 1.09, c.z)
-  group.add(antenna)
+  // Printed PCB antenna at the left end, approximated by a copper meander.
+  const antennaMat = metal(0xc89b42, 0.35)
+  const traceGeoH = cachedGeometry('esp32s3-ant-h', () => new THREE.BoxGeometry(0.95, 0.025, 0.10))
+  const traceGeoV = cachedGeometry('esp32s3-ant-v', () => new THREE.BoxGeometry(0.10, 0.025, 0.64))
+  const antX = minX + 0.62
+  for (let i = 0; i < 4; i++) {
+    const h = new THREE.Mesh(traceGeoH, antennaMat)
+    h.position.set(antX + (i % 2 ? 0.20 : 0), pcbY + 0.39, c.z - 1.05 + i * 0.62)
+    group.add(h)
+    if (i < 3) {
+      const v = new THREE.Mesh(traceGeoV, antennaMat)
+      v.position.set(antX + (i % 2 ? -0.27 : 0.48), pcbY + 0.39, c.z - 0.74 + i * 0.62)
+      group.add(v)
+    }
+  }
 
-  const usbGeo = cachedGeometry('esp32s3-usb', () => new THREE.BoxGeometry(1.45, 0.72, 1.35))
-  const usbMat = metal(0xc9ccd0, 0.3)
+  // Two USB-C receptacles at the connector end. A black inset gives the shell
+  // actual depth instead of looking like a silver cube.
+  const usbShellGeo = cachedGeometry('esp32s3-usbc-shell', () => new THREE.BoxGeometry(1.48, 0.62, 1.08))
+  const usbMouthGeo = cachedGeometry('esp32s3-usbc-mouth', () => new THREE.BoxGeometry(0.08, 0.34, 0.70))
+  const usbShellMat = metal(0xc3c7ca, 0.24)
+  const mouthMat = plastic(0x17191b, 0.42)
   for (const dz of [-1.05, 1.05]) {
-    const usb = new THREE.Mesh(usbGeo, usbMat)
-    usb.position.set(maxX + 0.58, 0.77, c.z + dz)
-    group.add(usb)
+    const shell = new THREE.Mesh(usbShellGeo, usbShellMat)
+    shell.position.set(maxX + 0.47, pcbY + 0.22, c.z + dz)
+    group.add(shell)
+    const mouth = new THREE.Mesh(usbMouthGeo, mouthMat)
+    mouth.position.set(maxX + 1.22, pcbY + 0.22, c.z + dz)
+    group.add(mouth)
   }
 
-  const btnGeo = cachedGeometry('esp32s3-button', () => new THREE.BoxGeometry(0.95, 0.3, 0.8))
-  const btnMat = plastic(0x222326, 0.5)
-  for (const dz of [-1.5, 1.5]) {
-    const btn = new THREE.Mesh(btnGeo, btnMat)
-    btn.position.set(maxX - 2.25, 0.77, c.z + dz)
-    group.add(btn)
+  // BOOT / RESET tactile switches with a metallic base and dark actuator.
+  const switchBaseGeo = cachedGeometry('esp32s3-switch-base', () => new THREE.BoxGeometry(0.88, 0.16, 0.72))
+  const switchCapGeo = cachedGeometry('esp32s3-switch-cap', () => new THREE.BoxGeometry(0.42, 0.18, 0.42))
+  for (const dz of [-1.55, 1.55]) {
+    const base = new THREE.Mesh(switchBaseGeo, metal(0xbfc1c2, 0.35))
+    base.position.set(maxX - 2.05, pcbY + 0.20, c.z + dz)
+    group.add(base)
+    const cap = new THREE.Mesh(switchCapGeo, plastic(0x202326, 0.45))
+    cap.position.set(maxX - 2.05, pcbY + 0.37, c.z + dz)
+    group.add(cap)
   }
 
-  const label = makeBoardLabel('ESP32-S3  DEVKITC-1', Math.min(8.5, boardW * 0.42), 1.0)
+  // Tiny power/RGB LEDs near the USB end.
+  const ledGeo = cachedGeometry('esp32s3-smd-led', () => new THREE.BoxGeometry(0.28, 0.08, 0.18))
+  const pwrLed = new THREE.Mesh(ledGeo, cachedMaterial('esp32s3-led-red', () => new THREE.MeshStandardMaterial({ color: 0xff3b30, emissive: 0x8a0803, emissiveIntensity: 1.4 })))
+  pwrLed.position.set(maxX - 3.1, pcbY + 0.18, c.z - 0.55)
+  group.add(pwrLed)
+  const rgbLed = new THREE.Mesh(ledGeo, cachedMaterial('esp32s3-led-rgb', () => new THREE.MeshStandardMaterial({ color: 0x67d9ff, emissive: 0x154d66, emissiveIntensity: 1.0 })))
+  rgbLed.position.set(maxX - 3.1, pcbY + 0.18, c.z + 0.55)
+  group.add(rgbLed)
+
+  const label = makeBoardLabel('ESP32-S3  DevKitC-1', Math.min(8.8, boardW * 0.40), 0.85)
   if (label) {
-    label.position.set(c.x + boardW * 0.12, 0.96, c.z)
+    label.position.set(c.x + boardW * 0.13, pcbY + 0.18, c.z)
     group.add(label)
   }
+  const bootLabel = makeBoardLabel('BOOT', 1.5, 0.48, '#cfd7d4')
+  if (bootLabel) {
+    bootLabel.position.set(maxX - 3.4, pcbY + 0.17, c.z - 1.55)
+    group.add(bootLabel)
+  }
+  const rstLabel = makeBoardLabel('RST', 1.3, 0.48, '#cfd7d4')
+  if (rstLabel) {
+    rstLabel.position.set(maxX - 3.4, pcbY + 0.17, c.z + 1.55)
+    group.add(rstLabel)
+  }
 
-  return { object: group, pinWorld: pins.map((p) => p.clone()) }
+  // Attach points at header-top height make future direct-pin jumpers land on
+  // the physical pin instead of disappearing through the PCB.
+  const pinWorld = pins.map((p) => new THREE.Vector3(p.x, pcbY + 0.50, p.z))
+  return { object: group, pinWorld }
 }
 
 function makeTftTexture(): THREE.Texture | null {
@@ -168,10 +253,7 @@ export function buildTft5Inch(
   back.position.set(cx, 0.72, cz)
   group.add(back)
 
-  const bezel = new THREE.Mesh(
-    new THREE.BoxGeometry(bodyW - 1.0, 0.18, bodyD - 1.0),
-    plastic(0x050607, 0.38),
-  )
+  const bezel = new THREE.Mesh(new THREE.BoxGeometry(bodyW - 1.0, 0.18, bodyD - 1.0), plastic(0x050607, 0.38))
   bezel.position.set(cx, 1.24, cz)
   group.add(bezel)
 
