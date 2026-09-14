@@ -19,6 +19,20 @@ interface Esp32FirmwareRecord extends Esp32FirmwareMeta {
   images: Esp32FirmwareImage[]
 }
 
+export interface Esp32GpioState {
+  out: bigint
+  enable: bigint
+  input: bigint
+}
+
+export interface Esp32DisplayFrame {
+  width: number
+  height: number
+  /** RGB565 little-endian bytes, exactly width*height*2 bytes. */
+  rgb565: Uint8Array
+  seq: number
+}
+
 export interface Esp32RuntimeSnapshot {
   status: 'idle' | 'loading' | 'running' | 'stopped' | 'error'
   message: string
@@ -28,6 +42,8 @@ export interface Esp32RuntimeSnapshot {
   speed?: number
   mips?: number
   error?: string
+  gpio?: Esp32GpioState
+  display?: Esp32DisplayFrame
 }
 
 const DB_NAME = 'ohmlet-esp32-firmware'
@@ -41,9 +57,15 @@ const WORKER_URL = '/esp32sim/worker.js'
 const snapshots = new Map<string, Esp32RuntimeSnapshot>()
 const listeners = new Map<string, Set<() => void>>()
 const workers = new Map<string, Worker>()
+const gpioStates = new Map<string, Esp32GpioState>()
+let displaySeq = 0
+
+function emptyGpio(): Esp32GpioState {
+  return { out: 0n, enable: 0n, input: 0n }
+}
 
 function idleSnapshot(): Esp32RuntimeSnapshot {
-  return { status: 'idle', message: 'No firmware flashed', console: '' }
+  return { status: 'idle', message: 'No firmware flashed', console: '', gpio: emptyGpio() }
 }
 
 function ensureSnapshot(id: string): Esp32RuntimeSnapshot {
@@ -83,6 +105,39 @@ export function subscribeEsp32Runtime(id: string, fn: () => void): () => void {
     set?.delete(fn)
     if (set?.size === 0) listeners.delete(id)
   }
+}
+
+/** Fast synchronous view used by the mixed-signal ESP32 chip model. */
+export function getEsp32GpioState(componentId: string): Esp32GpioState {
+  return gpioStates.get(componentId) ?? emptyGpio()
+}
+
+/**
+ * Feed a solved Ohmlet pin level into the emulated ESP32 pad. Only changes are
+ * sent; the custom esp32sim runtime dispatches this through its documented
+ * web GPIO message at the next emulation slice boundary.
+ */
+export function setEsp32GpioInput(componentId: string, pin: number, level: boolean): void {
+  if (!Number.isInteger(pin) || pin < 0 || pin > 48) return
+  const old = gpioStates.get(componentId) ?? emptyGpio()
+  const bit = 1n << BigInt(pin)
+  const nextInput = level ? old.input | bit : old.input & ~bit
+  if (nextInput === old.input) return
+  const next = { ...old, input: nextInput }
+  gpioStates.set(componentId, next)
+  const snap = snapshots.get(componentId)
+  if (snap) publish(componentId, { gpio: next })
+  const worker = workers.get(componentId)
+  if (worker) {
+    worker.postMessage({
+      op: 'text',
+      data: JSON.stringify({ t: 'gpio', pin, level: level ? 1 : 0 }),
+    })
+  }
+}
+
+export function getEsp32DisplayFrame(componentId: string): Esp32DisplayFrame | undefined {
+  return snapshots.get(componentId)?.display
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -141,12 +196,6 @@ async function dbDelete(componentId: string): Promise<void> {
   }
 }
 
-function copyBuffer(bytes: Uint8Array): ArrayBuffer {
-  const copy = new Uint8Array(bytes.byteLength)
-  copy.set(bytes)
-  return copy.buffer
-}
-
 export function inspectEsp32Image(data: ArrayBuffer | Uint8Array): {
   ok: boolean
   chipId?: number
@@ -171,14 +220,6 @@ async function fileImage(file: File, kind: 1 | 2 | 3 | 5): Promise<Esp32Firmware
   return { kind, name: file.name, data: await file.arrayBuffer() }
 }
 
-/**
- * Turn one or more ESP-IDF / Arduino binary files into a flash bundle.
- *
- * One ordinary .bin is treated as an application image and direct-booted.
- * Names containing merged/factory/full-flash are treated as complete flash
- * images. With several files, bootloader / partition-table / app are detected
- * by filename and loaded at 0x0 / 0x8000 / 0x10000 respectively.
- */
 export async function makeEsp32FirmwareBundle(files: readonly File[]): Promise<{
   mode: Esp32FirmwareMode
   images: Esp32FirmwareImage[]
@@ -210,7 +251,6 @@ export async function makeEsp32FirmwareBundle(files: readonly File[]): Promise<{
   ])
   for (const image of images) {
     const inspected = inspectEsp32Image(image.data)
-    // Partition tables are raw data, not ESP images.
     if (image.kind !== 2 && !inspected.ok) throw new Error(`${image.name}: ${inspected.error}`)
   }
   return { mode: 'parts', images }
@@ -277,14 +317,52 @@ function waitForMessage(worker: Worker, predicate: (msg: Record<string, unknown>
   })
 }
 
+function parseHexMask(value: unknown): bigint | null {
+  if (typeof value !== 'string' || !/^[0-9a-f]+$/i.test(value)) return null
+  try { return BigInt(`0x${value}`) } catch { return null }
+}
+
+function decodeDisplay(componentId: string, bin: unknown): void {
+  if (!(bin instanceof ArrayBuffer)) return
+  const bytes = new Uint8Array(bin)
+  if (bytes.length < 5 || bytes[0] !== 1) return
+  const width = bytes[1] | (bytes[2] << 8)
+  const height = bytes[3] | (bytes[4] << 8)
+  const n = width * height * 2
+  if (width <= 0 || height <= 0 || n > 8_000_000 || bytes.length < 5 + n) return
+  const rgb565 = bytes.slice(5, 5 + n)
+  publish(componentId, { display: { width, height, rgb565, seq: ++displaySeq } })
+}
+
 function handleWorkerMessage(componentId: string, msg: Record<string, unknown>): void {
   if (typeof msg.log === 'string') appendConsole(componentId, `${msg.log}\n`)
+  if (msg.bin) decodeDisplay(componentId, msg.bin)
+
+  if (msg.gpio && typeof msg.gpio === 'object') {
+    const g = msg.gpio as Record<string, unknown>
+    const out = parseHexMask(g.out)
+    const enable = parseHexMask(g.enable)
+    if (out !== null && enable !== null) {
+      const old = gpioStates.get(componentId) ?? emptyGpio()
+      const next = { ...old, out, enable }
+      gpioStates.set(componentId, next)
+      publish(componentId, { gpio: next })
+    }
+  }
+
   if (typeof msg.text === 'string') {
     try {
       const frame = JSON.parse(msg.text) as Record<string, unknown>
       if (frame.t === 'serial' && typeof frame.data === 'string') appendConsole(componentId, frame.data)
       else if (frame.t === 'emu' && typeof frame.msg === 'string') appendConsole(componentId, `${frame.msg}\n`)
       else if (frame.t === 'stat') {
+        const input = parseHexMask(frame.gpio_in)
+        if (input !== null) {
+          const old = gpioStates.get(componentId) ?? emptyGpio()
+          const next = { ...old, input }
+          gpioStates.set(componentId, next)
+          publish(componentId, { gpio: next })
+        }
         publish(componentId, {
           emulatedSeconds: typeof frame.time === 'number' ? frame.time : ensureSnapshot(componentId).emulatedSeconds,
           speed: typeof frame.speed === 'number' ? frame.speed : ensureSnapshot(componentId).speed,
@@ -302,10 +380,14 @@ function handleWorkerMessage(componentId: string, msg: Record<string, unknown>):
     })
   }
   if (typeof msg.stopped === 'number') {
+    const old = gpioStates.get(componentId) ?? emptyGpio()
+    const released = { ...old, out: 0n, enable: 0n }
+    gpioStates.set(componentId, released)
     publish(componentId, {
       status: msg.stopped === 0 ? 'stopped' : 'error',
       message: msg.stopped === 0 ? 'Firmware stopped' : `Firmware stopped with emulator code ${msg.stopped}`,
       error: msg.stopped === 0 ? undefined : `Emulator stop code ${msg.stopped}`,
+      gpio: released,
     })
   }
 }
@@ -323,10 +405,14 @@ export function stopEsp32Firmware(componentId: string): void {
     worker.terminate()
     workers.delete(componentId)
   }
+  const old = gpioStates.get(componentId) ?? emptyGpio()
+  const released = { ...old, out: 0n, enable: 0n }
+  gpioStates.set(componentId, released)
   const snap = ensureSnapshot(componentId)
   publish(componentId, {
     status: snap.firmware ? 'stopped' : 'idle',
     message: snap.firmware ? 'Firmware stopped' : 'No firmware flashed',
+    gpio: released,
   })
 }
 
@@ -336,6 +422,8 @@ export async function bootEsp32Firmware(componentId: string): Promise<void> {
 
   stopEsp32Firmware(componentId)
   const { images: _images, ...meta } = record
+  const gpio = emptyGpio()
+  gpioStates.set(componentId, gpio)
   publish(componentId, {
     status: 'loading',
     message: 'Starting ESP32-S3 emulator…',
@@ -345,6 +433,8 @@ export async function bootEsp32Firmware(componentId: string): Promise<void> {
     emulatedSeconds: 0,
     speed: undefined,
     mips: undefined,
+    gpio,
+    display: undefined,
   })
 
   let worker: Worker | undefined
@@ -400,6 +490,7 @@ export async function bootEsp32Firmware(componentId: string): Promise<void> {
 export async function eraseEsp32Firmware(componentId: string): Promise<void> {
   stopEsp32Firmware(componentId)
   await dbDelete(componentId)
+  gpioStates.delete(componentId)
   snapshots.set(componentId, idleSnapshot())
   listeners.get(componentId)?.forEach((fn) => fn())
 }
