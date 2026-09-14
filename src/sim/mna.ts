@@ -16,8 +16,9 @@
  * The signature records matrix-operation indices + values (not a hash), so
  * reuse is collision-free. The dense matrix itself is materialized only when
  * that signature changes; steady-state steps touch O(stamps) matrix metadata
- * instead of clearing/rebuilding O(N²) storage. RHS-only changes never
- * invalidate the LU factors.
+ * instead of clearing/rebuilding O(N²) storage. Matching stable stamps are
+ * compared directly against the cached signature without being copied into a
+ * second buffer. RHS-only changes never invalidate the LU factors.
  *
  * The factorization remains dense for numerical simplicity, but cached solves
  * remember the first/last non-zero factor in every triangular row. Sparse and
@@ -82,6 +83,7 @@ export class MnaSystem implements StampContext {
   /** Last potentially non-zero U column for each row (inclusive). */
   private readonly upperEnd: Int32Array
   private hasFactor = false
+  private factorHasRowSwaps = false
 
   /**
    * Exact matrix-stamp signature for the currently cached LU factorization.
@@ -92,7 +94,11 @@ export class MnaSystem implements StampContext {
   private prevStampValue = new Float64Array(INITIAL_STAMP_CAPACITY)
   private prevStampCount = 0
 
-  /** Reusable buffers collecting the current stamping pass. */
+  /**
+   * Reusable buffers for a changed stamping pass. While the pass still exactly
+   * matches the cached signature no writes are made here; on the first
+   * mismatch the already-matched prefix is copied once and capture continues.
+   */
   private currStampIndex = new Int32Array(INITIAL_STAMP_CAPACITY)
   private currStampValue = new Float64Array(INITIAL_STAMP_CAPACITY)
   private currStampCount = 0
@@ -111,8 +117,8 @@ export class MnaSystem implements StampContext {
   }
 
   /**
-   * Start a fresh stamping pass. Matrix contributions are captured into the
-   * exact stamp signature first; the dense matrix is rebuilt lazily only when
+   * Start a fresh stamping pass. Matrix contributions are checked against the
+   * exact cached signature first; the dense matrix is rebuilt lazily only when
    * factorIfNeeded() discovers that the cached LU cannot be reused.
    */
   beginStamp(): void {
@@ -161,18 +167,19 @@ export class MnaSystem implements StampContext {
     const n = this.nodeCount
     if (n === 0) return true
 
-    if (
-      this.hasFactor &&
-      this.stampMatchesFactor &&
-      this.currStampCount === this.prevStampCount
-    ) {
-      return true
+    if (this.hasFactor && this.stampMatchesFactor) {
+      if (this.currStampCount === this.prevStampCount) return true
+      // A pass that ended early matched a prefix of the old signature. Capture
+      // that shorter prefix so it can be materialized/factored as a new matrix.
+      this.captureMatchingPrefix(this.currStampCount)
+      this.stampMatchesFactor = false
     }
 
     this.materializeMatrix()
     const lu = this.lu
     lu.set(this.a)
     const perm = this.perm
+    let rowSwaps = false
 
     for (let k = 0; k < n; k++) {
       // partial pivoting: pick the largest |entry| in column k at/below row k
@@ -187,10 +194,12 @@ export class MnaSystem implements StampContext {
       }
       if (!(max > SINGULAR_EPS)) {
         this.hasFactor = false
+        this.factorHasRowSwaps = false
         return false
       }
       perm[k] = p
       if (p !== k) {
+        rowSwaps = true
         for (let j = 0; j < n; j++) {
           const t = lu[k * n + j]
           lu[k * n + j] = lu[p * n + j]
@@ -207,6 +216,7 @@ export class MnaSystem implements StampContext {
       }
     }
     this.hasFactor = true
+    this.factorHasRowSwaps = rowSwaps
     this.analyzeFactorBands()
     this.commitStampSignature()
     return true
@@ -218,15 +228,18 @@ export class MnaSystem implements StampContext {
     if (n === 0) return
     if (!this.hasFactor) return
     const lu = this.lu
-    const perm = this.perm
     x.set(this.b)
-    // apply recorded row swaps
-    for (let k = 0; k < n; k++) {
-      const p = perm[k]
-      if (p !== k) {
-        const t = x[k]
-        x[k] = x[p]
-        x[p] = t
+    // Most passive conductance matrices need no pivot row swaps. Skip the
+    // whole permutation walk in that common case.
+    if (this.factorHasRowSwaps) {
+      const perm = this.perm
+      for (let k = 0; k < n; k++) {
+        const p = perm[k]
+        if (p !== k) {
+          const t = x[k]
+          x[k] = x[p]
+          x[p] = t
+        }
       }
     }
     // forward substitution (L has unit diagonal). Cached row bounds skip the
@@ -288,27 +301,41 @@ export class MnaSystem implements StampContext {
     }
   }
 
-  /** Append one exact matrix operation to the reusable current signature. */
+  /** Append one exact matrix operation to the current pass. */
   private recordMatrixStamp(index: number, value: number): void {
     const pos = this.currStampCount
-    if (pos >= this.currStampIndex.length) this.growCurrentStampBuffers(pos + 1)
-
-    this.currStampIndex[pos] = index
-    this.currStampValue[pos] = value
 
     if (this.stampMatchesFactor) {
       if (
-        pos >= this.prevStampCount ||
-        this.prevStampIndex[pos] !== index ||
-        this.prevStampValue[pos] !== value
+        pos < this.prevStampCount &&
+        this.prevStampIndex[pos] === index &&
+        this.prevStampValue[pos] === value
       ) {
-        this.stampMatchesFactor = false
+        // Stable fast path: compare only. Do not rewrite a duplicate signature.
+        this.currStampCount = pos + 1
+        return
       }
+      // First mismatch: copy the already-matched prefix once, then capture the
+      // changed suffix normally so factorIfNeeded() can materialize it.
+      this.captureMatchingPrefix(pos)
+      this.stampMatchesFactor = false
     }
+
+    this.ensureCurrentStampCapacity(pos + 1)
+    this.currStampIndex[pos] = index
+    this.currStampValue[pos] = value
     this.currStampCount = pos + 1
   }
 
-  private growCurrentStampBuffers(minCapacity: number): void {
+  private captureMatchingPrefix(count: number): void {
+    if (count <= 0) return
+    this.ensureCurrentStampCapacity(count)
+    this.currStampIndex.set(this.prevStampIndex.subarray(0, count), 0)
+    this.currStampValue.set(this.prevStampValue.subarray(0, count), 0)
+  }
+
+  private ensureCurrentStampCapacity(minCapacity: number): void {
+    if (minCapacity <= this.currStampIndex.length) return
     let capacity = Math.max(INITIAL_STAMP_CAPACITY, this.currStampIndex.length)
     while (capacity < minCapacity) capacity *= 2
 
