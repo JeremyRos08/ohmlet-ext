@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ComponentInstance, ComponentTelemetry, ScopeSample } from '../../model/types'
 import { getEntry, paramOf } from '../../model/catalog'
@@ -85,8 +86,8 @@ function ScreenHeader({
       <button
         type="button"
         className="insthud-close"
-        aria-label={`Hide ${id} screen`}
-        title="Remove from selection"
+        aria-label={`Close ${id} screen`}
+        title="Close screen"
         onClick={onClose}
       >
         ×
@@ -307,24 +308,65 @@ export function InstrumentHud() {
   const telemetry = useStore((s) => s.telemetry)
   const scope = useStore((s) => s.scope)
   const toggleSelect = useStore((s) => s.toggleSelect)
+  const [openIds, setOpenIds] = useState<string[]>([])
 
-  if (typeof document === 'undefined' || selection.length === 0) return null
+  // Selection OPENS instrument windows, but losing selection no longer closes
+  // them. This makes the screen windows independent from the inspector/scene
+  // selection: click MM1, then PS1, and both remain visible until their own ×.
+  useEffect(() => {
+    const newlySelected = selection.filter((id) => {
+      const comp = components.find((c) => c.id === id)
+      return !!comp && isHudComponent(comp)
+    })
+    if (newlySelected.length === 0) return
+    setOpenIds((prev) => {
+      const next = [...prev]
+      let changed = false
+      for (const id of newlySelected) {
+        if (!next.includes(id)) {
+          next.push(id)
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [selection, components])
 
-  const selected = selection
+  // Components can be deleted while their window is open. Drop stale ids so
+  // they cannot reappear if another layout later reuses the same component id.
+  useEffect(() => {
+    setOpenIds((prev) => {
+      const next = prev.filter((id) => components.some((c) => c.id === id && isHudComponent(c)))
+      return next.length === prev.length ? prev : next
+    })
+  }, [components])
+
+  if (typeof document === 'undefined') return null
+
+  const openComponents = openIds
     .map((id) => components.find((c) => c.id === id))
     .filter((c): c is ComponentInstance => !!c && isHudComponent(c))
-  if (selected.length === 0) return null
+  if (openComponents.length === 0) return null
 
-  const probes = selected.filter((c) => c.type === 'scope_probe')
-  const instruments = selected.filter((c) => c.type !== 'scope_probe')
+  const probes = openComponents.filter((c) => c.type === 'scope_probe')
+  const instruments = openComponents.filter((c) => c.type !== 'scope_probe')
   const screenCount = instruments.length + (probes.length > 0 ? 1 : 0)
 
+  const closeOne = (id: string) => {
+    setOpenIds((prev) => prev.filter((openId) => openId !== id))
+    if (selection.includes(id)) toggleSelect(id)
+  }
+
   const closeScope = () => {
-    for (const probe of probes) toggleSelect(probe.id)
+    const probeIds = new Set(probes.map((probe) => probe.id))
+    setOpenIds((prev) => prev.filter((id) => !probeIds.has(id)))
+    for (const id of selection) {
+      if (probeIds.has(id)) toggleSelect(id)
+    }
   }
 
   return createPortal(
-    <aside className="insthud" aria-label="Selected instrument screens">
+    <aside className="insthud" aria-label="Open instrument screens">
       <div className="insthud-head">
         <strong>Instrument screens</strong>
         <span>{screenCount}</span>
@@ -332,7 +374,7 @@ export function InstrumentHud() {
       <div className="insthud-grid">
         {instruments.map((comp) => {
           const tele = telemetry?.components?.[comp.id]
-          const close = () => toggleSelect(comp.id)
+          const close = () => closeOne(comp.id)
           switch (comp.type) {
             case 'multimeter':
               return <MultimeterScreen key={comp.id} comp={comp} onClose={close} />
