@@ -20,8 +20,6 @@ const MULTIMETER: CatalogEntry = {
       kind: 'select',
       default: 'DC V',
       options: ['DC V', 'AC V', 'Ω', 'Continuity', 'mA', 'A'],
-      // Structural on purpose: changing range rebuilds the engine so the
-      // behavioral meter model starts cleanly in its new electrical mode.
     },
     {
       key: 'resistance',
@@ -43,6 +41,10 @@ const MULTIMETER: CatalogEntry = {
  * Espressif ESP32-S3-DevKitC-1 v1.0 header order.
  * J1 pins 1..22 are followed by J3 pins 1..22. Duplicate power/ground names
  * are suffixed only so telemetry keys stay unambiguous in Ohmlet.
+ *
+ * The headers intentionally sit in rows b/i instead of the outer a/j rows.
+ * Those exposed outer rows are electrically the same breadboard strips, so a
+ * jumper can be plugged beside every ESP pin without fighting the board mesh.
  */
 const ESP32_S3_DEVKIT: CatalogEntry = {
   type: 'esp32_s3_devkit',
@@ -50,36 +52,33 @@ const ESP32_S3_DEVKIT: CatalogEntry = {
   category: 'ic',
   placement: 'footprint',
   pins: [
-    // J1, pins 1..22
     '3V3_1', '3V3_2', 'RST', 'GPIO4', 'GPIO5', 'GPIO6', 'GPIO7', 'GPIO15', 'GPIO16', 'GPIO17', 'GPIO18',
     'GPIO8', 'GPIO3', 'GPIO46', 'GPIO9', 'GPIO10', 'GPIO11', 'GPIO12', 'GPIO13', 'GPIO14', '5V', 'GND_J1',
-    // J3, pins 1..22
     'GND_J3_1', 'TX_GPIO43', 'RX_GPIO44', 'GPIO1', 'GPIO2', 'GPIO42', 'GPIO41', 'GPIO40', 'GPIO39', 'GPIO38',
     'GPIO37', 'GPIO36', 'GPIO35', 'GPIO0', 'GPIO45', 'GPIO48', 'GPIO47', 'GPIO21', 'GPIO20_USB_D+',
     'GPIO19_USB_D-', 'GND_J3_2', 'GND_J3_3',
   ],
   footprintOffsets: [
-    // J1 header along row a
-    { dCol: 0, row: 'a' }, { dCol: 1, row: 'a' }, { dCol: 2, row: 'a' }, { dCol: 3, row: 'a' },
-    { dCol: 4, row: 'a' }, { dCol: 5, row: 'a' }, { dCol: 6, row: 'a' }, { dCol: 7, row: 'a' },
-    { dCol: 8, row: 'a' }, { dCol: 9, row: 'a' }, { dCol: 10, row: 'a' }, { dCol: 11, row: 'a' },
-    { dCol: 12, row: 'a' }, { dCol: 13, row: 'a' }, { dCol: 14, row: 'a' }, { dCol: 15, row: 'a' },
-    { dCol: 16, row: 'a' }, { dCol: 17, row: 'a' }, { dCol: 18, row: 'a' }, { dCol: 19, row: 'a' },
-    { dCol: 20, row: 'a' }, { dCol: 21, row: 'a' },
-    // J3 header along row j
-    { dCol: 0, row: 'j' }, { dCol: 1, row: 'j' }, { dCol: 2, row: 'j' }, { dCol: 3, row: 'j' },
-    { dCol: 4, row: 'j' }, { dCol: 5, row: 'j' }, { dCol: 6, row: 'j' }, { dCol: 7, row: 'j' },
-    { dCol: 8, row: 'j' }, { dCol: 9, row: 'j' }, { dCol: 10, row: 'j' }, { dCol: 11, row: 'j' },
-    { dCol: 12, row: 'j' }, { dCol: 13, row: 'j' }, { dCol: 14, row: 'j' }, { dCol: 15, row: 'j' },
-    { dCol: 16, row: 'j' }, { dCol: 17, row: 'j' }, { dCol: 18, row: 'j' }, { dCol: 19, row: 'j' },
-    { dCol: 20, row: 'j' }, { dCol: 21, row: 'j' },
+    // J1 header one row in from the top edge: row a remains free for jumpers.
+    { dCol: 0, row: 'b' }, { dCol: 1, row: 'b' }, { dCol: 2, row: 'b' }, { dCol: 3, row: 'b' },
+    { dCol: 4, row: 'b' }, { dCol: 5, row: 'b' }, { dCol: 6, row: 'b' }, { dCol: 7, row: 'b' },
+    { dCol: 8, row: 'b' }, { dCol: 9, row: 'b' }, { dCol: 10, row: 'b' }, { dCol: 11, row: 'b' },
+    { dCol: 12, row: 'b' }, { dCol: 13, row: 'b' }, { dCol: 14, row: 'b' }, { dCol: 15, row: 'b' },
+    { dCol: 16, row: 'b' }, { dCol: 17, row: 'b' }, { dCol: 18, row: 'b' }, { dCol: 19, row: 'b' },
+    { dCol: 20, row: 'b' }, { dCol: 21, row: 'b' },
+    // J3 header one row in from the bottom edge: row j remains free for jumpers.
+    { dCol: 0, row: 'i' }, { dCol: 1, row: 'i' }, { dCol: 2, row: 'i' }, { dCol: 3, row: 'i' },
+    { dCol: 4, row: 'i' }, { dCol: 5, row: 'i' }, { dCol: 6, row: 'i' }, { dCol: 7, row: 'i' },
+    { dCol: 8, row: 'i' }, { dCol: 9, row: 'i' }, { dCol: 10, row: 'i' }, { dCol: 11, row: 'i' },
+    { dCol: 12, row: 'i' }, { dCol: 13, row: 'i' }, { dCol: 14, row: 'i' }, { dCol: 15, row: 'i' },
+    { dCol: 16, row: 'i' }, { dCol: 17, row: 'i' }, { dCol: 18, row: 'i' }, { dCol: 19, row: 'i' },
+    { dCol: 20, row: 'i' }, { dCol: 21, row: 'i' },
   ],
-  bodyFootprint: { dCols: [0, 21], rows: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'] },
-  // First increment: real board/pinout and high-impedance electrical pins.
-  // Firmware execution / GPIO drive behavior will be layered on separately.
+  // Do not occlude the exposed a/j jumper rows.
+  bodyFootprint: { dCols: [0, 21], rows: ['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'] },
   sim: { kind: 'probe' },
   visual: { shape: 'esp32s3' },
-  doc: 'ESP32-S3-DevKitC-1 development board with the official 2×22 Espressif header pinout. Mount it across the breadboard using pin 1 (3V3_1) as the anchor in row a. The current simulator model exposes all pins as high-impedance connection points; firmware/GPIO execution is not emulated yet.',
+  doc: 'ESP32-S3-DevKitC-1 with the official 2×22 header pinout. Mount pin 1 at a breadboard column; its headers occupy rows b and i so rows a and j stay exposed as electrically-equivalent jumper points beside every pin. Firmware can be flashed and executed in the browser from the component inspector.',
 }
 
 const TFT_5IN: CatalogEntry = {
@@ -90,7 +89,7 @@ const TFT_5IN: CatalogEntry = {
   pins: ['5V', 'GND', 'SCK', 'MOSI', 'MISO', 'CS', 'DC', 'RST', 'BL', 'SDA', 'SCL', 'INT'],
   sim: { kind: 'probe' },
   visual: { shape: 'tft5' },
-  doc: 'Generic 5-inch 800×480 TFT module. Display-side interface is modeled as 5V/GND plus SPI (SCK, MOSI, MISO, CS, DC, RST, BL) and an I²C capacitive-touch header (SDA, SCL, INT). This is intentionally generic until an exact display model is selected; pixel/controller behavior is not emulated yet.',
+  doc: 'Generic 5-inch 800×480 TFT module. Display-side interface is modeled as 5V/GND plus SPI (SCK, MOSI, MISO, CS, DC, RST, BL) and an I²C capacitive-touch header (SDA, SCL, INT). This is intentionally generic until an exact display model is selected.',
 }
 
 if (!CATALOG.multimeter) CATALOG.multimeter = MULTIMETER
