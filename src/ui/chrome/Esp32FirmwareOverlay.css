@@ -1,0 +1,84 @@
+.esp-fw-window {
+  position: fixed;
+  z-index: 88;
+  width: min(390px, calc(100vw - 16px));
+  max-height: min(78vh, 720px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 18px;
+  background: rgba(20, 24, 31, .93);
+  color: #f4f5f7;
+  box-shadow: 0 18px 52px rgba(0, 0, 0, .42);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+.esp-fw-window-head {
+  min-height: 46px;
+  padding: 8px 10px 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.esp-fw-window-head:active { cursor: grabbing; }
+
+.esp-fw-window-head > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.esp-fw-window-head strong {
+  font: 700 13px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #64d2ff;
+}
+
+.esp-fw-window-head span {
+  font-size: 12px;
+  opacity: .7;
+}
+
+.esp-fw-window-head button {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .07);
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.esp-fw-window-body {
+  max-height: calc(min(78vh, 720px) - 47px);
+  padding: 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.esp-fw-window-body .lg-group {
+  margin: 0;
+}
+
+@media (max-width: 899px) {
+  .esp-fw-window {
+    width: min(360px, calc(100vw - 16px));
+    max-height: min(70vh, 600px);
+  }
+
+  .esp-fw-window-body {
+    max-height: calc(min(70vh, 600px) - 47px);
+  }
+}
