@@ -1,0 +1,173 @@
+.espfw-status,
+.espfw-meta,
+.espfw-actions,
+.espfw-console-row {
+  gap: 10px;
+}
+
+.espfw-status {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.espfw-status > div:first-child {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
+.espfw-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #777;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
+  flex: none;
+}
+
+.espfw-dot.is-running { background: #30d158; box-shadow: 0 0 10px rgba(48, 209, 88, .55); }
+.espfw-dot.is-loading { background: #ffd60a; box-shadow: 0 0 10px rgba(255, 214, 10, .45); }
+.espfw-dot.is-error { background: #ff453a; box-shadow: 0 0 10px rgba(255, 69, 58, .45); }
+.espfw-dot.is-stopped { background: #64d2ff; }
+
+.espfw-status-text {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.espfw-pace {
+  flex: none;
+  font: 11px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  opacity: .65;
+}
+
+.espfw-meta {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.espfw-meta-main,
+.espfw-meta-side {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.espfw-meta-main strong {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.espfw-meta-main span,
+.espfw-meta-side {
+  font-size: 11px;
+  opacity: .62;
+}
+
+.espfw-meta-side {
+  align-items: flex-end;
+  flex: none;
+}
+
+.espfw-meta-side code {
+  font-size: 10px;
+}
+
+.espfw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.espfw-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.espfw-btn {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .07);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.espfw-btn:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.espfw-primary {
+  background: rgba(10, 132, 255, .22);
+  border-color: rgba(100, 210, 255, .28);
+}
+
+.espfw-danger {
+  color: #ff6961;
+}
+
+.espfw-error {
+  color: #ff8a82;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.espfw-console-row {
+  display: block;
+}
+
+.espfw-console-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  opacity: .72;
+}
+
+.espfw-console-head button {
+  border: 0;
+  background: transparent;
+  color: #64d2ff;
+  font: inherit;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.espfw-console {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 94px;
+  max-height: 220px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid rgba(100, 210, 255, .14);
+  border-radius: 10px;
+  background: #071019;
+  color: #9ee6c5;
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-overflow-scrolling: touch;
+}
