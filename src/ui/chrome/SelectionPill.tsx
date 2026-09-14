@@ -8,14 +8,15 @@
  * haptics on press, safe-area aware. Portaled to <body> like the
  * UndoPill/Dock so it z-stacks predictably over the app shell.
  *
- * The InstrumentHud is mounted here as companion selection chrome: it can
- * show one or many selected instrument screens without changing App.tsx.
+ * Instrument and ESP32 firmware overlays are mounted here as companion
+ * selection chrome without changing App.tsx.
  */
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from '../../state/store'
 import { ActionSheet, pressProps, tick, useIsDesktop } from '../kit'
 import { InstrumentHud } from './InstrumentHud'
+import { Esp32FirmwareOverlay } from './Esp32FirmwareOverlay'
 import './SelectionPill.css'
 
 /** Matches the exit transition (--lg-dur-control 200ms) with a little slack. */
@@ -81,6 +82,7 @@ export function SelectionPill() {
   return (
     <>
       <InstrumentHud />
+      <Esp32FirmwareOverlay />
 
       {mounted &&
         createPortal(
