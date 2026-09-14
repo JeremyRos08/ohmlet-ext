@@ -1,7 +1,10 @@
-const STORAGE_KEY = 'bb.instrumentHudPosition.v1'
-const HUD_SELECTOR = '.insthud'
-const HEAD_SELECTOR = '.insthud-head'
+const STORAGE_PREFIX = 'bb.instrumentHudPosition.v2:'
+const PANEL_SELECTOR = '.insthud-card'
+const HEAD_SELECTOR = '.insthud-card-head'
 const VIEWPORT_MARGIN = 8
+const DESKTOP_RAIL = 78
+const DEFAULT_TOP = 72
+const TILE_GAP = 12
 
 interface HudPosition {
   x: number
@@ -31,9 +34,18 @@ export function clampHudPosition(
   }
 }
 
-function readSavedPosition(): HudPosition | null {
+function panelKey(panel: HTMLElement): string {
+  const id = panel.querySelector<HTMLElement>('.insthud-card-id')?.textContent?.trim()
+  return id || `screen-${Array.from(document.querySelectorAll(PANEL_SELECTOR)).indexOf(panel)}`
+}
+
+function storageKey(panel: HTMLElement): string {
+  return `${STORAGE_PREFIX}${encodeURIComponent(panelKey(panel))}`
+}
+
+function readSavedPosition(panel: HTMLElement): HudPosition | null {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = window.localStorage.getItem(storageKey(panel))
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<HudPosition>
     if (!Number.isFinite(parsed.x) || !Number.isFinite(parsed.y)) return null
@@ -43,12 +55,11 @@ function readSavedPosition(): HudPosition | null {
   }
 }
 
-function savePosition(pos: HudPosition): void {
+function savePosition(panel: HTMLElement, pos: HudPosition): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pos))
+    window.localStorage.setItem(storageKey(panel), JSON.stringify(pos))
   } catch {
-    // Storage can be unavailable in private/restricted contexts. Dragging
-    // still works for the current session, so persistence is best-effort.
+    // Persistence is best-effort; dragging still works without storage.
   }
 }
 
@@ -73,9 +84,33 @@ function clampPanel(panel: HTMLElement, x: number, y: number): HudPosition {
   )
 }
 
-const boundPanels = new WeakSet<HTMLElement>()
+function defaultPosition(panel: HTMLElement): HudPosition {
+  const panels = Array.from(document.querySelectorAll<HTMLElement>(PANEL_SELECTOR))
+  const index = Math.max(0, panels.indexOf(panel))
+  const rect = panel.getBoundingClientRect()
+  const desktop = window.innerWidth >= 900
+  const startX = desktop ? DESKTOP_RAIL + VIEWPORT_MARGIN : VIEWPORT_MARGIN
+  const usableRight = desktop
+    ? Math.max(startX + rect.width, window.innerWidth - 360)
+    : window.innerWidth - VIEWPORT_MARGIN
+  const usableWidth = Math.max(rect.width, usableRight - startX)
+  const columns = Math.max(1, Math.floor((usableWidth + TILE_GAP) / (rect.width + TILE_GAP)))
+  const col = index % columns
+  const row = Math.floor(index / columns)
+  const x = startX + col * (rect.width + TILE_GAP)
+  const y = DEFAULT_TOP + row * (rect.height + TILE_GAP)
+  return clampPanel(panel, x, y)
+}
 
-function bindHud(panel: HTMLElement): void {
+const boundPanels = new WeakSet<HTMLElement>()
+let zCounter = 70
+
+function bringToFront(panel: HTMLElement): void {
+  zCounter += 1
+  panel.style.zIndex = String(zCounter)
+}
+
+function bindPanel(panel: HTMLElement): void {
   if (boundPanels.has(panel)) return
   const head = panel.querySelector<HTMLElement>(HEAD_SELECTOR)
   if (!head) return
@@ -84,7 +119,7 @@ function bindHud(panel: HTMLElement): void {
   head.style.cursor = 'grab'
   head.style.touchAction = 'none'
   head.style.userSelect = 'none'
-  head.title = 'Drag instrument screens'
+  head.title = `Drag ${panelKey(panel)} screen`
 
   let drag: DragState | null = null
 
@@ -100,18 +135,18 @@ function bindHud(panel: HTMLElement): void {
     const rect = panel.getBoundingClientRect()
     const pos = clampPanel(panel, rect.left, rect.top)
     applyExplicitPosition(panel, pos)
-    savePosition(pos)
+    savePosition(panel, pos)
   }
 
   head.addEventListener('pointerdown', (ev) => {
     if (ev.pointerType === 'mouse' && ev.button !== 0) return
-    const rect = panel.getBoundingClientRect()
+    const target = ev.target instanceof Element ? ev.target : null
+    if (target?.closest('button, input, select, a')) return
 
-    // Freeze the current CSS-computed position into pixel coordinates before
-    // dragging. This preserves the responsive desktop/mobile default until
-    // the user actually moves the HUD.
+    const rect = panel.getBoundingClientRect()
     const initial = clampPanel(panel, rect.left, rect.top)
     applyExplicitPosition(panel, initial)
+    bringToFront(panel)
 
     drag = {
       pointerId: ev.pointerId,
@@ -136,27 +171,29 @@ function bindHud(panel: HTMLElement): void {
 
   head.addEventListener('pointerup', finishDrag)
   head.addEventListener('pointercancel', finishDrag)
+  panel.addEventListener('pointerdown', () => bringToFront(panel), { capture: true })
 
-  const saved = readSavedPosition()
-  if (saved) {
-    requestAnimationFrame(() => {
-      if (!panel.isConnected) return
-      applyExplicitPosition(panel, clampPanel(panel, saved.x, saved.y))
-    })
-  }
+  requestAnimationFrame(() => {
+    if (!panel.isConnected) return
+    const saved = readSavedPosition(panel)
+    const pos = saved ? clampPanel(panel, saved.x, saved.y) : defaultPosition(panel)
+    applyExplicitPosition(panel, pos)
+    if (!saved) savePosition(panel, pos)
+  })
 }
 
-function bindExistingHuds(): void {
-  document.querySelectorAll<HTMLElement>(HUD_SELECTOR).forEach(bindHud)
+function bindExistingPanels(): void {
+  document.querySelectorAll<HTMLElement>(PANEL_SELECTOR).forEach(bindPanel)
 }
 
-function clampVisibleHud(): void {
-  const panel = document.querySelector<HTMLElement>(HUD_SELECTOR)
-  if (!panel || panel.dataset.insthudPositioned !== 'true') return
-  const rect = panel.getBoundingClientRect()
-  const pos = clampPanel(panel, rect.left, rect.top)
-  applyExplicitPosition(panel, pos)
-  savePosition(pos)
+function clampVisiblePanels(): void {
+  document.querySelectorAll<HTMLElement>(PANEL_SELECTOR).forEach((panel) => {
+    if (panel.dataset.insthudPositioned !== 'true') return
+    const rect = panel.getBoundingClientRect()
+    const pos = clampPanel(panel, rect.left, rect.top)
+    applyExplicitPosition(panel, pos)
+    savePosition(panel, pos)
+  })
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -165,10 +202,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     root.__ohmletInstrumentHudDragInstalled = true
 
     const start = () => {
-      bindExistingHuds()
-      const observer = new MutationObserver(bindExistingHuds)
+      bindExistingPanels()
+      const observer = new MutationObserver(bindExistingPanels)
       observer.observe(document.body, { childList: true, subtree: true })
-      window.addEventListener('resize', clampVisibleHud)
+      window.addEventListener('resize', clampVisiblePanels)
     }
 
     if (document.body) start()
