@@ -1,5 +1,6 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
+import './model/catalog-ext'
 import App from './App'
 import './ui/styles.css'
 
