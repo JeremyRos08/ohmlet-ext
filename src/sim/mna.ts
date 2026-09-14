@@ -18,6 +18,11 @@
  * that signature changes; steady-state steps touch O(stamps) matrix metadata
  * instead of clearing/rebuilding O(N²) storage. RHS-only changes never
  * invalidate the LU factors.
+ *
+ * The factorization remains dense for numerical simplicity, but cached solves
+ * remember the first/last non-zero factor in every triangular row. Sparse and
+ * banded breadboard networks therefore skip the large zero regions during
+ * forward/back substitution without changing the LU mathematics.
  */
 
 /** Leak conductance from every node to ground (S). */
@@ -72,6 +77,10 @@ export class MnaSystem implements StampContext {
   private readonly b: Float64Array // stamped RHS current vector
   private readonly lu: Float64Array // LU factors (in place, unit lower diag)
   private readonly perm: Int32Array // row-swap record from partial pivoting
+  /** First potentially non-zero L column for each row (inclusive). */
+  private readonly lowerStart: Int32Array
+  /** Last potentially non-zero U column for each row (inclusive). */
+  private readonly upperEnd: Int32Array
   private hasFactor = false
 
   /**
@@ -96,6 +105,8 @@ export class MnaSystem implements StampContext {
     this.b = new Float64Array(n)
     this.lu = new Float64Array(n * n)
     this.perm = new Int32Array(n)
+    this.lowerStart = new Int32Array(n)
+    this.upperEnd = new Int32Array(n)
     this.scratch = new Float64Array(n)
   }
 
@@ -196,6 +207,7 @@ export class MnaSystem implements StampContext {
       }
     }
     this.hasFactor = true
+    this.analyzeFactorBands()
     this.commitStampSignature()
     return true
   }
@@ -217,18 +229,20 @@ export class MnaSystem implements StampContext {
         x[p] = t
       }
     }
-    // forward substitution (L has unit diagonal)
+    // forward substitution (L has unit diagonal). Cached row bounds skip the
+    // structural zero prefix common in sparse/banded breadboard networks.
     for (let i = 1; i < n; i++) {
       let s = x[i]
       const row = i * n
-      for (let j = 0; j < i; j++) s -= lu[row + j] * x[j]
+      for (let j = this.lowerStart[i]; j < i; j++) s -= lu[row + j] * x[j]
       x[i] = s
     }
-    // back substitution
+    // back substitution. Likewise skip the structural zero suffix of U.
     for (let i = n - 1; i >= 0; i--) {
       let s = x[i]
       const row = i * n
-      for (let j = i + 1; j < n; j++) s -= lu[row + j] * x[j]
+      const end = this.upperEnd[i]
+      for (let j = i + 1; j <= end; j++) s -= lu[row + j] * x[j]
       x[i] = s / lu[row + i]
     }
   }
@@ -241,6 +255,36 @@ export class MnaSystem implements StampContext {
     for (let i = 0; i < n; i++) a[i * n + i] = GMIN
     for (let i = 0; i < this.currStampCount; i++) {
       a[this.currStampIndex[i]] += this.currStampValue[i]
+    }
+  }
+
+  /**
+   * Record conservative contiguous non-zero bounds for L and U. The one-time
+   * O(N²) scan happens only after refactorization and lets every later solve
+   * skip zeros outside each row's active band. Exact `!== 0` checks preserve
+   * all numerical values; no tolerance or approximation is introduced.
+   */
+  private analyzeFactorBands(): void {
+    const n = this.nodeCount
+    const lu = this.lu
+    for (let i = 0; i < n; i++) {
+      const row = i * n
+      let lo = i
+      for (let j = 0; j < i; j++) {
+        if (lu[row + j] !== 0) {
+          lo = j
+          break
+        }
+      }
+      let hi = i
+      for (let j = n - 1; j > i; j--) {
+        if (lu[row + j] !== 0) {
+          hi = j
+          break
+        }
+      }
+      this.lowerStart[i] = lo
+      this.upperEnd[i] = hi
     }
   }
 
