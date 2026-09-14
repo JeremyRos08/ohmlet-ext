@@ -45,7 +45,6 @@ export function buildEsp32S3DevKit(
   pcb.position.set(c.x, 0.48, c.z)
   group.add(pcb)
 
-  // Header sockets / pins. The real DevKitC-1 has two 22-pin headers.
   const socketGeo = cachedGeometry('esp32s3-header-socket', () => new THREE.BoxGeometry(0.7, 0.42, 0.7))
   const pinGeo = cachedGeometry('esp32s3-header-pin', () => new THREE.CylinderGeometry(0.07, 0.07, 0.7, 8))
   const socketMat = plastic(0x111315, 0.62)
@@ -59,7 +58,6 @@ export function buildEsp32S3DevKit(
     group.add(pin)
   }
 
-  // ESP32-S3-WROOM RF module + shield.
   const module = new THREE.Mesh(
     new THREE.BoxGeometry(Math.min(boardW * 0.42, 9.0), 0.48, Math.max(3.8, boardD - 2.1)),
     cachedMaterial('esp32s3-module-shield', () =>
@@ -69,7 +67,6 @@ export function buildEsp32S3DevKit(
   module.position.set(minX + boardW * 0.27, 0.84, c.z)
   group.add(module)
 
-  // PCB antenna area at the module end.
   const antenna = new THREE.Mesh(
     new THREE.BoxGeometry(2.2, 0.06, Math.max(3.1, boardD - 2.6)),
     cachedMaterial('esp32s3-antenna', () =>
@@ -79,7 +76,6 @@ export function buildEsp32S3DevKit(
   antenna.position.set(minX + 1.15, 1.09, c.z)
   group.add(antenna)
 
-  // Two USB connectors at the opposite end, matching the DevKitC-1 layout.
   const usbGeo = cachedGeometry('esp32s3-usb', () => new THREE.BoxGeometry(1.45, 0.72, 1.35))
   const usbMat = metal(0xc9ccd0, 0.3)
   for (const dz of [-1.05, 1.05]) {
@@ -88,7 +84,6 @@ export function buildEsp32S3DevKit(
     group.add(usb)
   }
 
-  // BOOT / RESET tactile switches.
   const btnGeo = cachedGeometry('esp32s3-button', () => new THREE.BoxGeometry(0.95, 0.3, 0.8))
   const btnMat = plastic(0x222326, 0.5)
   for (const dz of [-1.5, 1.5]) {
@@ -157,9 +152,6 @@ export function buildTft5Inch(
   const group = new THREE.Group()
   const first = pins[0] ?? new THREE.Vector3(-8, 0, 0)
 
-  // Intentionally large compared with a bench instrument: roughly preserves
-  // the visual proportions of a five-inch 800×480 panel without swallowing
-  // the whole simulator bench.
   const bodyW = 30
   const bodyD = 18
   const bodyH = 0.9
@@ -184,24 +176,22 @@ export function buildTft5Inch(
   group.add(bezel)
 
   const tex = makeTftTexture()
-  const glassMat = new THREE.MeshPhysicalMaterial({
+  const glassParams: THREE.MeshPhysicalMaterialParameters = {
     color: tex ? 0xffffff : 0x102a3a,
-    map: tex ?? undefined,
     emissive: tex ? 0x24495b : 0x0b1c27,
     emissiveIntensity: tex ? 0.72 : 0.35,
     roughness: 0.22,
     metalness: 0,
     clearcoat: 0.75,
     clearcoatRoughness: 0.18,
-  })
+  }
+  if (tex) glassParams.map = tex
+  const glassMat = new THREE.MeshPhysicalMaterial(glassParams)
   const glass = new THREE.Mesh(new THREE.PlaneGeometry(bodyW - 2.0, bodyD - 2.0), glassMat)
   glass.rotation.x = -Math.PI / 2
   glass.position.set(cx, 1.36, cz)
   group.add(glass)
 
-  // Breakout strip: the simulator wires attach to the provided off-board
-  // terminal positions. Labels are intentionally represented by the catalog
-  // pin names in Properties; the physical pads stay compact and readable.
   const padGeo = cachedGeometry('tft5-pad', () => new THREE.CylinderGeometry(0.22, 0.22, 0.1, 14))
   for (const p of pins) {
     const pad = new THREE.Mesh(padGeo, metal(0xd6b75c, 0.25))
