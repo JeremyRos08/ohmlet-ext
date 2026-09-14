@@ -5,3 +5,5 @@ dist/
 
 demo/out/
 
+# Downloaded on predev/prebuild from the browser ESP32-S3 emulator runtime.
+public/esp32sim/
