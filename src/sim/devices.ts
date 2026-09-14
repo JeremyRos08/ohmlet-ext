@@ -2,14 +2,19 @@
  * Analog device models for the MNA solver.
  * Owned by the sim-core agent.
  *
- * Every device exposes:
- *   beginStep(time, dt)  — companion-model updates (capacitor/inductor BE, …)
- *   stamp(ctx, x)        — called EVERY Newton-Raphson iteration; nonlinear
- *                          devices linearize around the candidate solution x
- *                          with pn-junction voltage limiting
- *   endStep(x)           — state / telemetry bookkeeping after convergence
- *   setRuntimeParam(k,v) — live tweaks (pot position, switch state, voltage…)
- *   fillTelemetry(t)     — write device-specific telemetry fields
+ * Every device exposes the operations it actually needs:
+ *   beginStep?(time, dt)     — companion-model/time-source updates
+ *   stamp(ctx, x)            — called EVERY Newton-Raphson iteration
+ *   endStep?(x)              — state that must advance every simulation step
+ *   sampleTelemetry?(x)      — display-only bookkeeping, sampled on demand
+ *   setRuntimeParam(k,v)     — live tweaks (pot position, switch state, voltage…)
+ *   fillTelemetry(t)         — write device-specific telemetry fields
+ *
+ * Optional step hooks are intentional: a plain resistor must not pay two
+ * virtual no-op calls at 20 kHz. Display-only quantities such as resistor
+ * current/power are sampled when telemetry is requested instead of every sim
+ * tick. Components with physical state (capacitors, inductors, LED burnout,
+ * sources, etc.) keep their per-step hooks.
  *
  * Node indices: -1 = ground, anything < 0 is treated as the 0V reference by
  * `vAt`. The engine never hands devices an unmapped pin (malformed components
@@ -93,9 +98,11 @@ export interface AnalogDevice {
   readonly comp: ComponentInstance
   /** true → the engine runs the Newton-Raphson loop */
   readonly nonlinear: boolean
-  beginStep(time: number, dt: number): void
+  beginStep?(time: number, dt: number): void
   stamp(ctx: StampContext, x: Float64Array): void
-  endStep(x: Float64Array): void
+  endStep?(x: Float64Array): void
+  /** Update values used only by telemetry/UI, not by electrical state. */
+  sampleTelemetry?(x: Float64Array): void
   setRuntimeParam(key: string, value: ParamValue): void
   fillTelemetry(t: ComponentTelemetry): void
 }
@@ -119,9 +126,7 @@ abstract class BaseDevice implements AnalogDevice {
     return asBool(paramOf(this.comp.params, this.entry, key), fallback)
   }
 
-  beginStep(_time: number, _dt: number): void {}
   abstract stamp(ctx: StampContext, x: Float64Array): void
-  endStep(_x: Float64Array): void {}
   setRuntimeParam(_key: string, _value: ParamValue): void {}
   fillTelemetry(_t: ComponentTelemetry): void {}
 }
@@ -142,7 +147,7 @@ class ResistorDevice extends BaseDevice {
     ctx.addConductance(this.nodes[0], this.nodes[1], this.g)
   }
 
-  endStep(x: Float64Array): void {
+  sampleTelemetry(x: Float64Array): void {
     this.v = vAt(x, this.nodes[0]) - vAt(x, this.nodes[1])
     this.i = this.v * this.g
   }
@@ -280,7 +285,7 @@ class PhotoresistorDevice extends BaseDevice {
     ctx.addConductance(this.nodes[0], this.nodes[1], this.g)
   }
 
-  endStep(x: Float64Array): void {
+  sampleTelemetry(x: Float64Array): void {
     this.i = (vAt(x, this.nodes[0]) - vAt(x, this.nodes[1])) * this.g
   }
 
