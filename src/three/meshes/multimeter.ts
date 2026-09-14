@@ -4,6 +4,12 @@ import type { ComponentInstance } from '../../model/types'
 import type { CatalogEntry } from '../../model/catalog'
 import { TERMINAL_TOP_Y } from '../internal/wires'
 import {
+  getMultimeterReading,
+  multimeterModeOf,
+  type MultimeterMode,
+  type MultimeterReading,
+} from '../../sim/multimeter-chip'
+import {
   type BuildResult,
   cachedGeometry,
   cachedMaterial,
@@ -16,20 +22,81 @@ import {
 const LCD_W = 320
 const LCD_H = 140
 
-function formatVoltage(v: number): string {
-  if (!Number.isFinite(v)) return '----'
-  if (Math.abs(v) > 999.9) return 'OL'
-  const a = Math.abs(v)
-  const digits = a >= 100 ? 1 : a >= 10 ? 2 : 3
-  const s = Math.abs(v).toFixed(digits)
-  return v < -0.0005 ? `-${s}` : s
+function finite(v: number): boolean {
+  return Number.isFinite(v)
 }
 
-function drawLcd(ctx: CanvasRenderingContext2D, volts: number): void {
-  ctx.fillStyle = '#a8b79a'
+function fixedSmart(v: number, unit: string): string {
+  if (!finite(v)) return '----'
+  if (Math.abs(v) > 9999) return 'OL'
+  const a = Math.abs(v)
+  const digits = a >= 100 ? 1 : a >= 10 ? 2 : 3
+  const body = a.toFixed(digits)
+  return v < -0.0005 ? `-${body}` : body
+}
+
+interface DisplayValue {
+  main: string
+  mode: string
+  unit: string
+  footer: string
+  continuity: boolean
+}
+
+function displayFor(mode: MultimeterMode, reading: MultimeterReading | null): DisplayValue {
+  const value = reading?.value ?? Number.NaN
+  switch (mode) {
+    case 'dcv': {
+      const a = Math.abs(value)
+      if (finite(value) && a < 1) {
+        return { main: fixedSmart(value * 1000, 'mV'), mode: 'DC', unit: 'mV', footer: 'AUTO   10 MΩ', continuity: false }
+      }
+      return { main: fixedSmart(value, 'V'), mode: 'DC', unit: 'V', footer: 'AUTO   10 MΩ', continuity: false }
+    }
+    case 'acv': {
+      const a = Math.abs(value)
+      if (finite(value) && a < 1) {
+        return { main: fixedSmart(value * 1000, 'mV'), mode: 'AC RMS', unit: 'mV', footer: 'TRUE RMS EST.', continuity: false }
+      }
+      return { main: fixedSmart(value, 'V'), mode: 'AC RMS', unit: 'V', footer: 'TRUE RMS EST.', continuity: false }
+    }
+    case 'ohm':
+    case 'continuity': {
+      const r = reading?.resistance ?? value
+      let main = 'OL'
+      let unit = 'Ω'
+      if (finite(r) && r >= 0) {
+        if (r >= 1_000_000) {
+          main = fixedSmart(r / 1_000_000, 'MΩ')
+          unit = 'MΩ'
+        } else if (r >= 1000) {
+          main = fixedSmart(r / 1000, 'kΩ')
+          unit = 'kΩ'
+        } else {
+          main = fixedSmart(r, 'Ω')
+          unit = 'Ω'
+        }
+      }
+      const beep = mode === 'continuity' && !!reading?.continuity
+      return {
+        main,
+        mode: mode === 'continuity' ? 'CONT' : 'Ω',
+        unit,
+        footer: beep ? 'BEEP   CLOSED' : mode === 'continuity' ? 'OPEN > 50 Ω' : 'AUTO RANGE',
+        continuity: beep,
+      }
+    }
+    case 'ma':
+      return { main: fixedSmart(value * 1000, 'mA'), mode: 'DC', unit: 'mA', footer: '1 Ω SHUNT', continuity: false }
+    case 'a':
+      return { main: fixedSmart(value, 'A'), mode: 'DC', unit: 'A', footer: '0.01 Ω SHUNT', continuity: false }
+  }
+}
+
+function drawLcd(ctx: CanvasRenderingContext2D, display: DisplayValue): void {
+  ctx.fillStyle = display.continuity ? '#b8c9a2' : '#a8b79a'
   ctx.fillRect(0, 0, LCD_W, LCD_H)
 
-  // subtle LCD grid / inactive-segment feel
   ctx.fillStyle = 'rgba(38,48,38,0.07)'
   for (let x = 0; x < LCD_W; x += 8) ctx.fillRect(x, 0, 1, LCD_H)
   for (let y = 0; y < LCD_H; y += 8) ctx.fillRect(0, y, LCD_W, 1)
@@ -38,28 +105,37 @@ function drawLcd(ctx: CanvasRenderingContext2D, volts: number): void {
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
   ctx.font = 'bold 18px Arial, sans-serif'
-  ctx.fillText('DC', 18, 25)
+  ctx.fillText(display.mode, 18, 25)
   ctx.textAlign = 'right'
-  ctx.fillText('V', LCD_W - 20, 25)
+  ctx.fillText(display.unit, LCD_W - 20, 25)
 
   ctx.fillStyle = '#182118'
   ctx.textAlign = 'center'
-  ctx.font = 'bold 68px "Courier New", monospace'
-  ctx.fillText(formatVoltage(volts), LCD_W / 2, 80)
+  ctx.font = 'bold 66px "Courier New", monospace'
+  ctx.fillText(display.main, LCD_W / 2, 80)
 
   ctx.font = 'bold 15px Arial, sans-serif'
-  ctx.fillStyle = '#3a4938'
-  ctx.fillText('AUTO   10 MΩ', LCD_W / 2, 123)
+  ctx.fillStyle = display.continuity ? '#1e441f' : '#3a4938'
+  ctx.fillText(display.footer, LCD_W / 2, 123)
+}
+
+const MODE_ANGLE: Record<MultimeterMode, number> = {
+  dcv: -0.95,
+  acv: -0.55,
+  ohm: -0.15,
+  continuity: 0.25,
+  ma: 0.65,
+  a: 1.05,
 }
 
 /**
- * Handheld-style digital multimeter, currently wired as a DC voltmeter.
- * The electrical 10 MΩ input load is supplied by the catalog's resistor
- * model; this mesh only renders the body and reads VΩ-COM from telemetry.
+ * Handheld digital multimeter. Electrical behavior is implemented by the
+ * behavioral bridge in src/sim/multimeter-chip.ts; this file renders the
+ * instrument and presents the live computed reading.
  */
 export function buildMultimeter(
   comp: ComponentInstance,
-  entry: CatalogEntry,
+  _entry: CatalogEntry,
   pins: THREE.Vector3[],
 ): BuildResult {
   const group = new THREE.Group()
@@ -70,16 +146,6 @@ export function buildMultimeter(
   const bodyH = 4.0
   const bodyD = 3.2
 
-  const shell = new THREE.Mesh(
-    cachedGeometry('dmm-shell', () => new RoundedBoxGeometry(bodyW, bodyH, bodyD, 3, 0.22)),
-    cachedMaterial('dmm-shell-mat', () =>
-      new THREE.MeshPhysicalMaterial({ color: 0x202226, roughness: 0.62, metalness: 0 }),
-    ),
-  )
-  shell.position.set(c.x, bodyH / 2, frontZ - bodyD / 2)
-  group.add(shell)
-
-  // Rubber protective holster, slightly larger and visible around the shell.
   const holster = new THREE.Mesh(
     cachedGeometry('dmm-holster', () => new RoundedBoxGeometry(bodyW + 0.34, bodyH + 0.34, bodyD + 0.2, 3, 0.3)),
     cachedMaterial('dmm-holster-mat', () =>
@@ -87,10 +153,17 @@ export function buildMultimeter(
     ),
   )
   holster.position.set(c.x, bodyH / 2, frontZ - bodyD / 2 - 0.07)
-  holster.scale.set(1, 1, 1)
-  // The dark inner face sits just in front so the yellow holster reads as a rim.
   group.add(holster)
+
+  const shell = new THREE.Mesh(
+    cachedGeometry('dmm-shell', () => new RoundedBoxGeometry(bodyW, bodyH, bodyD, 3, 0.22)),
+    cachedMaterial('dmm-shell-mat', () =>
+      new THREE.MeshPhysicalMaterial({ color: 0x202226, roughness: 0.62, metalness: 0 }),
+    ),
+  )
+  shell.position.set(c.x, bodyH / 2, frontZ - bodyD / 2)
   shell.renderOrder = 1
+  group.add(shell)
 
   const face = new THREE.Mesh(
     cachedGeometry('dmm-face', () => new RoundedBoxGeometry(bodyW - 0.42, bodyH - 0.38, 0.12, 2, 0.12)),
@@ -111,7 +184,7 @@ export function buildMultimeter(
   bezel.position.set(c.x, screenY, faceZ)
   group.add(bezel)
 
-  let updateScreen: ((volts: number) => void) | null = null
+  let updateScreen: ((mode: MultimeterMode, reading: MultimeterReading | null) => void) | null = null
   if (typeof document !== 'undefined') {
     const canvas = document.createElement('canvas')
     canvas.width = LCD_W
@@ -133,15 +206,16 @@ export function buildMultimeter(
       const screen = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), mat)
       screen.position.set(c.x, screenY, faceZ + 0.1)
       group.add(screen)
-      let last = Number.NaN
-      updateScreen = (volts) => {
-        if (Number.isFinite(last) && Number.isFinite(volts) && Math.abs(last - volts) < 0.0005) return
-        if (!Number.isFinite(last) && !Number.isFinite(volts)) return
-        last = volts
-        drawLcd(ctx, volts)
+      let lastKey = ''
+      updateScreen = (mode, reading) => {
+        const d = displayFor(mode, reading)
+        const key = `${mode}|${d.main}|${d.unit}|${d.footer}`
+        if (key === lastKey) return
+        lastKey = key
+        drawLcd(ctx, d)
         tex.needsUpdate = true
       }
-      updateScreen(Number.NaN)
+      updateScreen(multimeterModeOf(comp), null)
     }
   }
 
@@ -161,7 +235,6 @@ export function buildMultimeter(
   glass.position.set(c.x, screenY, faceZ + 0.13)
   group.add(glass)
 
-  // Rotary selector fixed to DC volts for the first functional version.
   const dial = new THREE.Mesh(
     cachedGeometry('dmm-dial', () => {
       const g = new THREE.CylinderGeometry(0.83, 0.83, 0.3, 28)
@@ -180,20 +253,22 @@ export function buildMultimeter(
     ),
   )
   pointer.position.set(c.x, 1.68, faceZ + 0.35)
-  pointer.rotation.z = -0.55
+  pointer.rotation.z = MODE_ANGLE[multimeterModeOf(comp)]
   group.add(pointer)
 
-  const modeMat = labelMaterial('DC  V', { w: 160, h: 48, fg: '#e8e8e8' })
-  if (modeMat) {
+  const legendMat = labelMaterial('DCV   ACV   Ω   CONT   mA   A', { w: 512, h: 64, fg: '#e8e8e8' })
+  if (legendMat) {
     const lbl = new THREE.Mesh(
-      cachedGeometry('dmm-mode-label', () => new THREE.PlaneGeometry(1.15, 0.35)),
-      modeMat,
+      cachedGeometry('dmm-mode-legend', () => new THREE.PlaneGeometry(4.0, 0.5)),
+      legendMat,
     )
-    lbl.position.set(c.x + 1.35, 1.5, faceZ + 0.11)
+    lbl.position.set(c.x, 0.66, faceZ + 0.11)
     group.add(lbl)
   }
 
-  // Front jacks aligned with the scene's terminal attachment points.
+  // Two front jacks are kept for this first extended meter. Current ranges
+  // use the same red input in simulation; a dedicated fused A jack can be
+  // added later without changing the measurement core.
   const jackGeo = cachedGeometry('dmm-jack', () => {
     const g = new THREE.CylinderGeometry(0.25, 0.25, 0.54, 18)
     g.rotateX(Math.PI / 2)
@@ -223,9 +298,9 @@ export function buildMultimeter(
     group.add(stud)
   }
 
-  const vohmMat = labelMaterial('VΩ', { w: 96, h: 48, fg: '#e8e8e8' })
+  const vohmMat = labelMaterial('VΩ / mA / A', { w: 220, h: 48, fg: '#e8e8e8' })
   if (vohmMat && pins[0]) {
-    const lbl = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.28), vohmMat)
+    const lbl = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 0.28), vohmMat)
     lbl.position.set(pins[0].x, 0.42, faceZ + 0.11)
     group.add(lbl)
   }
@@ -241,10 +316,11 @@ export function buildMultimeter(
   return {
     object: group,
     pinWorld,
-    update: (_c2, _e2, telemetry) => {
-      const vp = telemetry?.pinVoltages?.['VΩ']
-      const vc = telemetry?.pinVoltages?.COM
-      updateScreen?.(typeof vp === 'number' && typeof vc === 'number' ? vp - vc : Number.NaN)
+    update: (c2) => {
+      const mode = multimeterModeOf(c2)
+      pointer.rotation.z = MODE_ANGLE[mode]
+      pointer.updateMatrix()
+      updateScreen?.(mode, getMultimeterReading(c2.id))
     },
   }
 }
