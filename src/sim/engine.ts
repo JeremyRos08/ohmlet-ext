@@ -3,13 +3,14 @@
  * Owned by the sim-core agent.
  *
  * Step order (per ARCHITECTURE.md):
- *   1. chips step    — read PREVIOUS solution, declare per-pin Norton drives
- *   2. device beginStep — companion-model updates (BE capacitor/inductor…)
- *   3. solve         — single pass for linear circuits, Newton-Raphson else
- *   4. device endStep — state + telemetry bookkeeping, runtime issue checks
+ *   1. chips step       — read PREVIOUS solution, declare per-pin Norton drives
+ *   2. active beginStep — companion/time-source updates only where needed
+ *   3. solve            — single pass for linear circuits, Newton-Raphson else
+ *   4. active endStep   — physical state/bookkeeping only where needed
  *
- * The engine never throws on weird layouts: malformed components are
- * excluded and reported as issues instead.
+ * Display-only device quantities are sampled lazily by telemetry(), not at
+ * every electrical tick. The engine never throws on weird layouts: malformed
+ * components are excluded and reported as issues instead.
  */
 
 import '../model/catalog'
@@ -47,6 +48,13 @@ const MSG_NO_POWER = 'no power supply'
 const MSG_SINGULAR = 'circuit matrix is singular — check connections'
 const MSG_NO_CONVERGE = 'solver failed to converge — results may be inaccurate'
 const MSG_NUMERIC = 'numerical error in solver — voltages were reset'
+
+type BeginStepDevice = AnalogDevice & {
+  beginStep(time: number, dt: number): void
+}
+type EndStepDevice = AnalogDevice & {
+  endStep(x: Float64Array): void
+}
 
 // --------------------------------------------------------- chip plumbing
 
@@ -136,6 +144,9 @@ export class SimEngine {
   private readonly x: Float64Array
   private readonly runtimes: CompRuntime[] = []
   private readonly devices: AnalogDevice[] = []
+  /** Compact hook lists: devices with no per-step work never enter these loops. */
+  private readonly beginStepDevices: BeginStepDevice[] = []
+  private readonly endStepDevices: EndStepDevice[] = []
   private readonly chips: ChipRuntime[] = []
   private readonly deviceById = new Map<string, AnalogDevice>()
   private readonly leds: LedDevice[] = []
@@ -214,6 +225,8 @@ export class SimEngine {
           }
           rt.device = device
           this.devices.push(device)
+          if (device.beginStep) this.beginStepDevices.push(device as BeginStepDevice)
+          if (device.endStep) this.endStepDevices.push(device as EndStepDevice)
           this.deviceById.set(comp.id, device)
           if (device instanceof LedDevice) this.leds.push(device)
           if (device instanceof PowerSupplyDevice) this.supplies.push(device)
@@ -278,9 +291,9 @@ export class SimEngine {
       }
     }
 
-    // 2. analog companion-model updates
-    const devices = this.devices
-    for (let i = 0; i < devices.length; i++) devices[i].beginStep(t, h)
+    // 2. analog companion/time-source updates — only devices that implement it
+    const beginDevices = this.beginStepDevices
+    for (let i = 0; i < beginDevices.length; i++) beginDevices[i].beginStep(t, h)
 
     // 3. solve
     if (this.sys.nodeCount > 0) {
@@ -304,8 +317,9 @@ export class SimEngine {
       }
     }
 
-    // 4. device bookkeeping
-    for (let i = 0; i < devices.length; i++) devices[i].endStep(x)
+    // 4. physical/state bookkeeping — display-only devices are absent here
+    const endDevices = this.endStepDevices
+    for (let i = 0; i < endDevices.length; i++) endDevices[i].endStep(x)
 
     // runtime issues
     this.checkRuntimeIssues()
@@ -352,6 +366,9 @@ export class SimEngine {
       }
       if (rt.device) {
         try {
+          // Display-only values (e.g. passive current/power) are computed at
+          // telemetry cadence rather than on every 50 µs simulation tick.
+          rt.device.sampleTelemetry?.(this.x)
           rt.device.fillTelemetry(tele)
         } catch {
           /* never throw from telemetry */
