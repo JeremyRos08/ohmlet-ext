@@ -260,6 +260,14 @@
   appearance: none;
   font-size: 17px; /* keeps iOS from zooming on focus */
 }
+/* Chromium/Windows opens the native option popup while this invisible select
+   is focused. The control itself is intentionally transparent, but option
+   labels must have an explicit native-popup color or they inherit the
+   transparent focused color and render as blank rows. */
+.prs-select-cover option {
+  color: #111;
+  background: #fff;
+}
 .prs-select-cover:focus-visible {
   opacity: 1;
   outline: 2px solid var(--ios-blue);
