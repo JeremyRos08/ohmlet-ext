@@ -1,3 +1,5 @@
+import './InstrumentHudWindows.css'
+
 const STORAGE_PREFIX = 'bb.instrumentHudPosition.v2:'
 const PANEL_SELECTOR = '.insthud-card'
 const HEAD_SELECTOR = '.insthud-card-head'
