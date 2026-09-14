@@ -13,12 +13,12 @@
  *
  * Linear circuits reuse their LU decomposition when the matrix stamp stream
  * is exactly identical to the one that produced the current factorization.
- * The signature records matrix-operation indices + values (not a hash), so
- * reuse is collision-free. The dense matrix itself is materialized only when
- * that signature changes; steady-state steps touch O(stamps) matrix metadata
- * instead of clearing/rebuilding O(N²) storage. Matching stable stamps are
- * compared directly against the cached signature without being copied into a
- * second buffer. RHS-only changes never invalidate the LU factors.
+ * The signature stores exact high-level matrix operations (raw element or
+ * two-terminal conductance), not a hash. A conductance is therefore ONE
+ * signature item instead of up to four expanded matrix writes. The dense
+ * matrix is materialized only when the signature changes; steady-state steps
+ * compare O(device stamps), not O(N²) matrix storage. RHS-only changes never
+ * invalidate the LU factors.
  *
  * The factorization remains dense for numerical simplicity, but cached solves
  * remember the first/last non-zero factor in every triangular row. Sparse and
@@ -66,6 +66,8 @@ export interface StampContext {
 
 const SINGULAR_EPS = 1e-13
 const INITIAL_STAMP_CAPACITY = 64
+const STAMP_ELEMENT = 0
+const STAMP_CONDUCTANCE = 1
 
 export class MnaSystem implements StampContext {
   readonly nodeCount: number
@@ -85,12 +87,10 @@ export class MnaSystem implements StampContext {
   private hasFactor = false
   private factorHasRowSwaps = false
 
-  /**
-   * Exact matrix-stamp signature for the currently cached LU factorization.
-   * Each entry is one matrix mutation: flat matrix index + exact JS number.
-   * GMIN is implicit because it is constant for this fixed-size system.
-   */
-  private prevStampIndex = new Int32Array(INITIAL_STAMP_CAPACITY)
+  /** Exact operation signature for the matrix that produced the cached LU. */
+  private prevStampKind = new Uint8Array(INITIAL_STAMP_CAPACITY)
+  private prevStampA = new Int32Array(INITIAL_STAMP_CAPACITY)
+  private prevStampB = new Int32Array(INITIAL_STAMP_CAPACITY)
   private prevStampValue = new Float64Array(INITIAL_STAMP_CAPACITY)
   private prevStampCount = 0
 
@@ -99,7 +99,9 @@ export class MnaSystem implements StampContext {
    * matches the cached signature no writes are made here; on the first
    * mismatch the already-matched prefix is copied once and capture continues.
    */
-  private currStampIndex = new Int32Array(INITIAL_STAMP_CAPACITY)
+  private currStampKind = new Uint8Array(INITIAL_STAMP_CAPACITY)
+  private currStampA = new Int32Array(INITIAL_STAMP_CAPACITY)
+  private currStampB = new Int32Array(INITIAL_STAMP_CAPACITY)
   private currStampValue = new Float64Array(INITIAL_STAMP_CAPACITY)
   private currStampCount = 0
   private stampMatchesFactor = false
@@ -130,16 +132,15 @@ export class MnaSystem implements StampContext {
   addElement(row: number, col: number, value: number): void {
     if (row < 0 || col < 0) return
     const idx = row * this.nodeCount + col
-    this.recordMatrixStamp(idx, value)
+    this.recordMatrixStamp(STAMP_ELEMENT, idx, 0, value)
   }
 
   addConductance(a: number, b: number, g: number): void {
-    if (a >= 0) this.addElement(a, a, g)
-    if (b >= 0) this.addElement(b, b, g)
-    if (a >= 0 && b >= 0) {
-      this.addElement(a, b, -g)
-      this.addElement(b, a, -g)
-    }
+    // One exact compound stamp replaces up to four element-signature entries.
+    // Ground (-1) remains encoded in the signature and is expanded only when
+    // a dense matrix really needs rebuilding.
+    if (a < 0 && b < 0) return
+    this.recordMatrixStamp(STAMP_CONDUCTANCE, a, b, g)
   }
 
   addCurrent(node: number, current: number): void {
@@ -157,11 +158,8 @@ export class MnaSystem implements StampContext {
   /**
    * Factor the stamped matrix with LU + partial pivoting, unless its exact
    * matrix-stamp stream is identical to the one that produced the cached LU.
-   *
-   * Comparing stamp operations is O(number of actual matrix contributions)
-   * and exact: identical indices + values in identical order necessarily
-   * produce the same matrix. A different stream conservatively refactors even
-   * if two different stamp sequences happen to sum to the same final matrix.
+   * A different operation stream conservatively refactors even if two streams
+   * happen to sum to the same final dense matrix.
    */
   factorIfNeeded(): boolean {
     const n = this.nodeCount
@@ -263,11 +261,25 @@ export class MnaSystem implements StampContext {
   /** Build the dense conductance matrix only on an actual refactor path. */
   private materializeMatrix(): void {
     const n = this.nodeCount
-    const a = this.a
-    a.fill(0)
-    for (let i = 0; i < n; i++) a[i * n + i] = GMIN
+    const matrix = this.a
+    matrix.fill(0)
+    for (let i = 0; i < n; i++) matrix[i * n + i] = GMIN
+
     for (let i = 0; i < this.currStampCount; i++) {
-      a[this.currStampIndex[i]] += this.currStampValue[i]
+      const value = this.currStampValue[i]
+      if (this.currStampKind[i] === STAMP_ELEMENT) {
+        matrix[this.currStampA[i]] += value
+        continue
+      }
+
+      const a = this.currStampA[i]
+      const b = this.currStampB[i]
+      if (a >= 0) matrix[a * n + a] += value
+      if (b >= 0) matrix[b * n + b] += value
+      if (a >= 0 && b >= 0) {
+        matrix[a * n + b] -= value
+        matrix[b * n + a] -= value
+      }
     }
   }
 
@@ -301,14 +313,16 @@ export class MnaSystem implements StampContext {
     }
   }
 
-  /** Append one exact matrix operation to the current pass. */
-  private recordMatrixStamp(index: number, value: number): void {
+  /** Append one exact high-level matrix operation to the current pass. */
+  private recordMatrixStamp(kind: number, a: number, b: number, value: number): void {
     const pos = this.currStampCount
 
     if (this.stampMatchesFactor) {
       if (
         pos < this.prevStampCount &&
-        this.prevStampIndex[pos] === index &&
+        this.prevStampKind[pos] === kind &&
+        this.prevStampA[pos] === a &&
+        this.prevStampB[pos] === b &&
         this.prevStampValue[pos] === value
       ) {
         // Stable fast path: compare only. Do not rewrite a duplicate signature.
@@ -322,7 +336,9 @@ export class MnaSystem implements StampContext {
     }
 
     this.ensureCurrentStampCapacity(pos + 1)
-    this.currStampIndex[pos] = index
+    this.currStampKind[pos] = kind
+    this.currStampA[pos] = a
+    this.currStampB[pos] = b
     this.currStampValue[pos] = value
     this.currStampCount = pos + 1
   }
@@ -330,18 +346,28 @@ export class MnaSystem implements StampContext {
   private captureMatchingPrefix(count: number): void {
     if (count <= 0) return
     this.ensureCurrentStampCapacity(count)
-    this.currStampIndex.set(this.prevStampIndex.subarray(0, count), 0)
+    this.currStampKind.set(this.prevStampKind.subarray(0, count), 0)
+    this.currStampA.set(this.prevStampA.subarray(0, count), 0)
+    this.currStampB.set(this.prevStampB.subarray(0, count), 0)
     this.currStampValue.set(this.prevStampValue.subarray(0, count), 0)
   }
 
   private ensureCurrentStampCapacity(minCapacity: number): void {
-    if (minCapacity <= this.currStampIndex.length) return
-    let capacity = Math.max(INITIAL_STAMP_CAPACITY, this.currStampIndex.length)
+    if (minCapacity <= this.currStampKind.length) return
+    let capacity = Math.max(INITIAL_STAMP_CAPACITY, this.currStampKind.length)
     while (capacity < minCapacity) capacity *= 2
 
-    const indices = new Int32Array(capacity)
-    indices.set(this.currStampIndex.subarray(0, this.currStampCount))
-    this.currStampIndex = indices
+    const kinds = new Uint8Array(capacity)
+    kinds.set(this.currStampKind.subarray(0, this.currStampCount))
+    this.currStampKind = kinds
+
+    const a = new Int32Array(capacity)
+    a.set(this.currStampA.subarray(0, this.currStampCount))
+    this.currStampA = a
+
+    const b = new Int32Array(capacity)
+    b.set(this.currStampB.subarray(0, this.currStampCount))
+    this.currStampB = b
 
     const values = new Float64Array(capacity)
     values.set(this.currStampValue.subarray(0, this.currStampCount))
@@ -353,9 +379,17 @@ export class MnaSystem implements StampContext {
    * allocating/copying it: swap the reusable current/previous buffers.
    */
   private commitStampSignature(): void {
-    const oldIndex = this.prevStampIndex
-    this.prevStampIndex = this.currStampIndex
-    this.currStampIndex = oldIndex
+    const oldKind = this.prevStampKind
+    this.prevStampKind = this.currStampKind
+    this.currStampKind = oldKind
+
+    const oldA = this.prevStampA
+    this.prevStampA = this.currStampA
+    this.currStampA = oldA
+
+    const oldB = this.prevStampB
+    this.prevStampB = this.currStampB
+    this.currStampB = oldB
 
     const oldValue = this.prevStampValue
     this.prevStampValue = this.currStampValue
