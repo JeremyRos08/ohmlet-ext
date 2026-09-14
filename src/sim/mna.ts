@@ -14,8 +14,10 @@
  * Linear circuits reuse their LU decomposition when the matrix stamp stream
  * is exactly identical to the one that produced the current factorization.
  * The signature records matrix-operation indices + values (not a hash), so
- * reuse is collision-free while avoiding an O(N²) dense-matrix comparison on
- * every steady-state step. RHS-only changes never invalidate the LU factors.
+ * reuse is collision-free. The dense matrix itself is materialized only when
+ * that signature changes; steady-state steps touch O(stamps) matrix metadata
+ * instead of clearing/rebuilding O(N²) storage. RHS-only changes never
+ * invalidate the LU factors.
  */
 
 /** Leak conductance from every node to ground (S). */
@@ -65,7 +67,8 @@ export class MnaSystem implements StampContext {
   /** workspace for NR (the "next" candidate solution) */
   readonly scratch: Float64Array
 
-  private readonly a: Float64Array // stamped conductance matrix (row-major)
+  /** Dense matrix workspace, populated lazily only when LU must be rebuilt. */
+  private readonly a: Float64Array
   private readonly b: Float64Array // stamped RHS current vector
   private readonly lu: Float64Array // LU factors (in place, unit lower diag)
   private readonly perm: Int32Array // row-swap record from partial pivoting
@@ -96,12 +99,13 @@ export class MnaSystem implements StampContext {
     this.scratch = new Float64Array(n)
   }
 
-  /** Reset matrix and RHS for a fresh stamping pass (gmin on the diagonal). */
+  /**
+   * Start a fresh stamping pass. Matrix contributions are captured into the
+   * exact stamp signature first; the dense matrix is rebuilt lazily only when
+   * factorIfNeeded() discovers that the cached LU cannot be reused.
+   */
   beginStamp(): void {
-    const n = this.nodeCount
-    this.a.fill(0)
     this.b.fill(0)
-    for (let i = 0; i < n; i++) this.a[i * n + i] = GMIN
     this.currStampCount = 0
     this.stampMatchesFactor = this.hasFactor
   }
@@ -109,7 +113,6 @@ export class MnaSystem implements StampContext {
   addElement(row: number, col: number, value: number): void {
     if (row < 0 || col < 0) return
     const idx = row * this.nodeCount + col
-    this.a[idx] += value
     this.recordMatrixStamp(idx, value)
   }
 
@@ -155,6 +158,7 @@ export class MnaSystem implements StampContext {
       return true
     }
 
+    this.materializeMatrix()
     const lu = this.lu
     lu.set(this.a)
     const perm = this.perm
@@ -226,6 +230,17 @@ export class MnaSystem implements StampContext {
       const row = i * n
       for (let j = i + 1; j < n; j++) s -= lu[row + j] * x[j]
       x[i] = s / lu[row + i]
+    }
+  }
+
+  /** Build the dense conductance matrix only on an actual refactor path. */
+  private materializeMatrix(): void {
+    const n = this.nodeCount
+    const a = this.a
+    a.fill(0)
+    for (let i = 0; i < n; i++) a[i * n + i] = GMIN
+    for (let i = 0; i < this.currStampCount; i++) {
+      a[this.currStampIndex[i]] += this.currStampValue[i]
     }
   }
 
