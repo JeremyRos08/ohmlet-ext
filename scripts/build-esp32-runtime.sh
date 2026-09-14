@@ -9,6 +9,8 @@ git checkout "$UPSTREAM_SHA"
 
 python3 - <<'PY'
 from pathlib import Path
+
+# Export GPIO output latch + output-enable masks from the S3 machine.
 p = Path('wasm/src/lib.rs')
 s = p.read_text()
 marker = '/// The page is the one client: messages queue in a `WebServer` sink; the worker paces the run.\n'
@@ -35,6 +37,26 @@ if 'esp32sim_gpio_enable' not in s:
         raise SystemExit('esp32sim wasm patch marker not found')
     p.write_text(s.replace(marker, patch + '\n' + marker))
 
+# The documented web protocol contains {t:"gpio",pin,level}; this pinned
+# upstream revision did not yet dispatch that message for S3. Add it so Ohmlet
+# can feed the solved breadboard voltage back into firmware GPIO inputs.
+p = Path('esp-soc/src/machine.rs')
+s = p.read_text()
+needle = '            match t.as_str() {\n                "btn" =>'
+replacement = '''            match t.as_str() {
+                "gpio" => {
+                    let pin: u8 = json_str(&m, "pin").and_then(|x| x.parse().ok()).unwrap_or(0);
+                    let level = json_str(&m, "level").unwrap_or_default() == "1";
+                    self.bus.gpio_set_input(pin, level);
+                    *self.bus.irq_dirty() = true;
+                }
+                "btn" =>'''
+if '"gpio" => {' not in s:
+    if needle not in s:
+        raise SystemExit('esp32sim machine GPIO input marker not found')
+    p.write_text(s.replace(needle, replacement, 1))
+
+# Publish output state only when it changes, keeping the browser bridge cheap.
 w = Path('web/wasm/worker.js')
 s = w.read_text()
 old = 'let wasm = null, emu = 0, running = false, t0 = 0, resyncs = 0, lastStat = { wall: 0, insns: 0, cycles: 0 };'
