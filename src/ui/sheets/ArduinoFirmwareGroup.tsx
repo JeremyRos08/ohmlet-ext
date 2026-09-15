@@ -3,6 +3,8 @@ import type { ComponentInstance } from '../../model/types'
 import {
   bootAvrFirmware,
   clearAvrConsole,
+  connectAvrWebSerial,
+  disconnectAvrWebSerial,
   eraseAvrFirmware,
   flashAvrFirmware,
   getAvrRuntimeSnapshot,
@@ -28,6 +30,7 @@ export function ArduinoFirmwareGroup({ comp }: { comp: ComponentInstance }) {
   const [busy, setBusy] = useState(false)
   const [uiError, setUiError] = useState<string | null>(null)
   const [serialText, setSerialText] = useState('')
+  const [baudRate, setBaudRate] = useState(115200)
 
   const subscribe = useCallback((fn: () => void) => subscribeAvrRuntime(comp.id, fn), [comp.id])
   const snapshot = useSyncExternalStore(
@@ -88,6 +91,20 @@ export function ArduinoFirmwareGroup({ comp }: { comp: ComponentInstance }) {
     setSerialText('')
   }
 
+  const connectUsb = async () => {
+    setBusy(true)
+    setUiError(null)
+    try { await connectAvrWebSerial(comp.id, baudRate) }
+    catch (error) { setUiError(error instanceof Error ? error.message : String(error)) }
+    finally { setBusy(false) }
+  }
+
+  const disconnectUsb = async () => {
+    setBusy(true)
+    try { await disconnectAvrWebSerial(comp.id) }
+    finally { setBusy(false) }
+  }
+
   const running = snapshot.status === 'running'
   const loading = snapshot.status === 'loading'
   const firmware = snapshot.firmware
@@ -95,7 +112,7 @@ export function ArduinoFirmwareGroup({ comp }: { comp: ComponentInstance }) {
   return (
     <ListGroup
       header="Arduino firmware"
-      footer="Flash the compiled .hex produced by Arduino IDE/CLI for an ATmega328P board. The emulator executes the real AVR instructions at 16 MHz; GPIO, ADC, timers and Serial are bridged to the simulated circuit."
+      footer="Le bouton USB ouvre un vrai port COM via Web Serial (Chrome/Edge, HTTPS ou localhost). Les octets USB entrent dans l’UART simulé et les Serial.print sortent vers le périphérique. Un port COM Windows virtuel sans matériel nécessitera le compagnon natif Ohmlet."
     >
       <div className="lg-row avrfw-status" role="listitem">
         <div>
@@ -135,6 +152,21 @@ export function ArduinoFirmwareGroup({ comp }: { comp: ComponentInstance }) {
         )}
         {firmware && (
           <button type="button" className="avrfw-btn avrfw-danger" disabled={busy} onClick={() => void erase()}>Erase</button>
+        )}
+      </div>
+
+      <div className="lg-row avrfw-usb" role="listitem">
+        <div className="avrfw-usb-copy">
+          <strong>{snapshot.serial?.connected ? 'USB / COM connecté' : 'Port USB / COM'}</strong>
+          <span>{snapshot.serial?.connected ? `Web Serial · ${snapshot.serial.baudRate} bauds` : 'Relier un vrai périphérique USB CDC ou UART'}</span>
+        </div>
+        <select aria-label="Baud rate USB" value={baudRate} disabled={busy || !!snapshot.serial?.connected} onChange={(event) => setBaudRate(Number(event.target.value))}>
+          {[9600, 19200, 38400, 57600, 115200, 230400].map((rate) => <option key={rate} value={rate}>{rate}</option>)}
+        </select>
+        {snapshot.serial?.connected ? (
+          <button type="button" className="avrfw-btn" disabled={busy} onClick={() => void disconnectUsb()}>Déconnecter</button>
+        ) : (
+          <button type="button" className="avrfw-btn avrfw-primary" disabled={busy} onClick={() => void connectUsb()}>Connecter USB</button>
         )}
       </div>
 

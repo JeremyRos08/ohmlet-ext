@@ -34,6 +34,21 @@ Arduino USB power is treated as a valid supply and ground reference, so a
 standalone Uno/Nano divider can be simulated without adding a virtual bench
 power supply. Endpoint voltage lookups are cached per engine topology.
 
+## USB / COM boundary
+
+The Arduino firmware panel now exposes a Web Serial bridge. On Chrome or Edge
+over HTTPS/localhost, `Connecter USB` requests a real USB CDC/UART device at a
+chosen baud rate. Bytes from that device are injected into the emulated
+ATmega328P UART; `Serial.print` bytes are sent back to the device and mirrored
+in the monitor. The transport is isolated in `src/firmware/web-serial.ts` so a
+native Ohmlet companion can later implement a true virtual COM endpoint using
+the same send/receive contract.
+
+Browser JavaScript cannot create a Windows device-manager COM port by itself.
+That last step requires a signed native driver/companion (for example a
+loopback COM pair or a virtual USB CDC device); the UI deliberately labels the
+browser bridge as Web Serial instead of pretending it is an OS port.
+
 ## Validation
 
 Before merging substantial changes:

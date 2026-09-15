@@ -145,3 +145,10 @@
   font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 .avrfw-serial-send input:focus { border-color: rgba(100, 210, 255, .45); }
+
+.avrfw-usb { display:flex; align-items:center; flex-wrap:wrap; gap:9px; }
+.avrfw-usb-copy { display:flex; flex:1; min-width:170px; flex-direction:column; gap:3px; }
+.avrfw-usb-copy strong { font-size:12px; }
+.avrfw-usb-copy span { font-size:10px; opacity:.62; }
+.avrfw-usb select { height:36px; max-width:92px; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:0 7px; background:rgba(255,255,255,.07); color:inherit; font:11px inherit; }
+.avrfw-usb select option { background:#18212d; }

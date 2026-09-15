@@ -1,3 +1,5 @@
+import { requestWebSerialSession, type SerialSession } from './web-serial'
+
 export type AvrPortName = 'B' | 'C' | 'D'
 
 export interface AvrIoState {
@@ -28,6 +30,7 @@ export interface AvrRuntimeSnapshot {
   io: AvrIoState
   cycles?: number
   speed?: number
+  serial?: { connected: boolean; transport: 'web-serial'; baudRate: number; port?: { usbVendorId?: number; usbProductId?: number } }
   error?: string
 }
 
@@ -42,13 +45,16 @@ const listeners = new Map<string, Set<() => void>>()
 const workers = new Map<string, Worker>()
 const digitalInputs = new Map<string, number>()
 const analogInputs = new Map<string, number[]>()
+const serialSessions = new Map<string, SerialSession>()
+const serialEncoder = new TextEncoder()
+const serialDecoder = new TextDecoder()
 
 function emptyIo(): AvrIoState {
   return { outB: 0, outC: 0, outD: 0, ddrB: 0, ddrC: 0, ddrD: 0 }
 }
 
 function idleSnapshot(): AvrRuntimeSnapshot {
-  return { status: 'idle', message: 'No Arduino firmware flashed', console: '', io: emptyIo() }
+  return { status: 'idle', message: 'No Arduino firmware flashed', console: '', io: emptyIo(), serial: undefined }
 }
 
 function ensureSnapshot(id: string): AvrRuntimeSnapshot {
@@ -247,7 +253,29 @@ function applyInputs(componentId: string, worker: Worker): void {
   for (let ch = 0; ch < analog.length; ch++) worker.postMessage({ op: 'analog', channel: ch, voltage: analog[ch] ?? 0 })
 }
 
+export async function disconnectAvrWebSerial(componentId: string): Promise<void> {
+  const session = serialSessions.get(componentId)
+  if (!session) return
+  serialSessions.delete(componentId)
+  await session.close().catch(() => undefined)
+  publish(componentId, { serial: undefined })
+}
+
+export async function connectAvrWebSerial(componentId: string, baudRate = 115200): Promise<void> {
+  await disconnectAvrWebSerial(componentId)
+  const session = await requestWebSerialSession((data) => {
+    // Bytes arriving from the physical USB device become host input to the
+    // emulated UART. They are also shown in the monitor for transparency.
+    const text = serialDecoder.decode(data, { stream: true })
+    if (text) appendConsole(componentId, `[USB RX] ${text}`)
+    if (text) sendAvrSerial(componentId, text, false)
+  }, baudRate)
+  serialSessions.set(componentId, session)
+  publish(componentId, { serial: { connected: true, transport: 'web-serial', baudRate, port: session.port.getInfo?.() } })
+}
+
 export function stopAvrFirmware(componentId: string): void {
+  void disconnectAvrWebSerial(componentId)
   const worker = workers.get(componentId)
   if (worker) {
     try { worker.postMessage({ op: 'stop' }) } catch { /* gone */ }
@@ -288,7 +316,11 @@ export async function bootAvrFirmware(componentId: string): Promise<void> {
     else if (msg.t === 'started') {
       publish(componentId, { status: 'running', message: 'ATmega328P firmware running' })
       applyInputs(componentId, worker)
-    } else if (msg.t === 'serial' && typeof msg.data === 'string') appendConsole(componentId, msg.data)
+    } else if (msg.t === 'serial' && typeof msg.data === 'string') {
+      appendConsole(componentId, msg.data)
+      const session = serialSessions.get(componentId)
+      if (session) void session.send(serialEncoder.encode(msg.data))
+    }
     else if (msg.t === 'io') {
       const previous = ensureSnapshot(componentId)
       publish(componentId, {
@@ -325,6 +357,10 @@ export function clearAvrConsole(componentId: string): void {
   publish(componentId, { console: '' })
 }
 
-export function sendAvrSerial(componentId: string, text: string): void {
+export function sendAvrSerial(componentId: string, text: string, toHardware = true): void {
   workers.get(componentId)?.postMessage({ op: 'serial', data: text })
+  if (toHardware) {
+    const session = serialSessions.get(componentId)
+    if (session) void session.send(serialEncoder.encode(text))
+  }
 }
