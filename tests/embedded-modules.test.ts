@@ -43,28 +43,33 @@ describe('ESP32-S3 DevKitC-1 extension', () => {
   })
 })
 
-describe('5-inch TFT extension', () => {
-  it('registers a wireable generic SPI + touch header', () => {
+describe('EastRising ER-TFTM050A2-3-3661 extension', () => {
+  it('registers the RA8875 SPI + capacitive touch breakout', () => {
     const entry = getEntry('tft_5in')
     expect(entry).toBeDefined()
+    expect(entry?.label).toContain('RA8875')
     expect(entry?.placement).toBe('offboard')
-    expect(entry?.pins).toEqual(['5V', 'GND', 'SCK', 'MOSI', 'MISO', 'CS', 'DC', 'RST', 'BL', 'SDA', 'SCL', 'INT'])
+    expect(entry?.visual?.shape).toBe('tft5-ra8875')
+    expect(entry?.pins).toEqual([
+      '5V', 'GND', 'SCK', 'MISO', 'MOSI', 'CS', 'RST', 'WAIT', 'INT', 'LITE',
+      'TP_SDA', 'TP_SCL', 'TP_INT', 'TP_RST',
+    ])
   })
 
-  it('builds the TFT around its connector row instead of beside it', () => {
+  it('builds a visible external header in front of the display body', () => {
     const entry = getEntry('tft_5in')!
-    const pins = entry.pins.map((_, i) => new THREE.Vector3(-8 + i * 2.5, 0, 2))
+    const pins = entry.pins.map((_, i) => new THREE.Vector3(-12 + i * 2.5, 0, 2))
     const built = buildComponentObject({ id: 'LCD1', type: entry.type }, entry, pins)
-    expect(built.pinWorld).toHaveLength(12)
-    expect(built.object.children.length).toBeGreaterThan(12)
-    const body = built.object.getObjectByName('tft5-body')
-    expect(body).toBeDefined()
-    const connectorCenter = pins.reduce((sum, p) => sum + p.x, 0) / pins.length
-    expect(body?.position.x).toBeCloseTo(connectorCenter, 6)
+    expect(built.pinWorld).toHaveLength(14)
+    expect(built.object.getObjectByName('tft5-body')).toBeDefined()
+    expect(built.object.getObjectByName('tft5-controller-pcb')).toBeDefined()
     expect(built.object.getObjectByName('tft5-header')).toBeDefined()
+    expect(built.object.getObjectByName('tft5-pin-SCK')).toBeDefined()
+    expect(built.object.getObjectByName('tft5-pin-TP_RST')).toBeDefined()
+    for (const p of built.pinWorld) expect(p.y).toBeCloseTo(0.7, 6)
   })
 
-  it('validates an ESP32-S3 and TFT in the same layout', () => {
+  it('validates an ESP32-S3 and RA8875 display in the same layout', () => {
     const result = validateLayout({
       version: 1,
       components: [
