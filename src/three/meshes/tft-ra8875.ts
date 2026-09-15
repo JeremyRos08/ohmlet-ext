@@ -59,6 +59,25 @@ function label(text: string, width: number, height: number, fg = '#eef6ef'): THR
   return topLabel(text, width, height, { w: 768, h: 96, fg })
 }
 
+function pinLabelColor(name: string): string {
+  if (name === '5V') return '#ffb4ae'
+  if (name === 'GND') return '#f0f1f4'
+  if (name.startsWith('TP_')) return '#b9f6ca'
+  if (name === 'LITE') return '#ffe38a'
+  return '#a9e8ff'
+}
+
+function pinLabel(name: string): THREE.Object3D | null {
+  const fontPx = name.length >= 6 ? 21 : name.length >= 5 ? 24 : 28
+  return topLabel(name, 2.18, 0.46, {
+    w: 256,
+    h: 64,
+    fg: pinLabelColor(name),
+    bg: 'rgba(5, 12, 15, 0.90)',
+    font: `700 ${fontPx}px "Helvetica Neue", Arial, sans-serif`,
+  })
+}
+
 /**
  * EastRising ER-TFTM050A2-3-3661: 5-inch 800×480 TFT with RA8875 controller
  * board and capacitive touch controller. The simulator exposes the useful
@@ -163,16 +182,45 @@ export function buildRa8875Tft5(
   const postGeo = cachedGeometry('ra8875-header-post', () => new THREE.CylinderGeometry(0.12, 0.12, 0.80, 10))
   const headerMat = plastic(0x0d0f11, 0.48)
   const gold = metal(0xd8b24e, 0.23)
+  const labelGroup = new THREE.Group()
+  labelGroup.name = 'tft5-pin-labels'
+  labelGroup.userData.pinNames = [...entry.pins]
+
   for (let i = 0; i < pins.length; i++) {
     const p = pins[i]
+    const pinName = entry.pins[i] ?? String(i + 1)
     const socket = new THREE.Mesh(socketGeo, headerMat)
     socket.position.set(p.x, 0.46, p.z)
     group.add(socket)
+
     const post = new THREE.Mesh(postGeo, gold)
-    post.name = `tft5-pin-${entry.pins[i] ?? i}`
+    post.name = `tft5-pin-${pinName}`
     post.position.set(p.x, 0.76, p.z)
     group.add(post)
+
+    // Pin names are printed immediately behind their matching post. Alternate
+    // between two rows so long touch names remain readable without colliding.
+    // A dark plaque is kept even in headless tests; the textured text is added
+    // in the browser where CanvasTexture is available.
+    const labelZ = pinZ - (i % 2 === 0 ? 0.70 : 1.19)
+    const plaque = new THREE.Mesh(
+      cachedGeometry('ra8875-pin-plaque', () => new THREE.BoxGeometry(2.22, 0.035, 0.49)),
+      cachedMaterial('ra8875-pin-plaque-mat', () =>
+        new THREE.MeshStandardMaterial({ color: 0x071014, roughness: 0.72, metalness: 0.02 }),
+      ),
+    )
+    plaque.name = `tft5-pinlabel-bg-${pinName}`
+    plaque.position.set(p.x, 0.655, labelZ)
+    labelGroup.add(plaque)
+
+    const text = pinLabel(pinName)
+    if (text) {
+      text.name = `tft5-pinlabel-${pinName}`
+      text.position.set(p.x, 0.684, labelZ)
+      labelGroup.add(text)
+    }
   }
+  group.add(labelGroup)
 
   const title = label('EASTRISING  ER-TFTM050A2-3', 10.5, 0.78)
   if (title) {
