@@ -267,7 +267,7 @@ export function buildRa8875Tft5(
     : undefined
 
   // Prime from an already-running source when a screen is added/rebuilt.
-  update?.(comp, entry, null)
+  update?.(comp)
   return {
     object: group,
     pinWorld: pins.map((p) => new THREE.Vector3(p.x, 0.7, p.z)),
