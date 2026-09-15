@@ -81,8 +81,11 @@ export function updateComponentVisual(
   comp: ComponentInstance,
   entry: CatalogEntry,
   telemetry: ComponentTelemetry | null,
-): void {
-  updaters.get(built.object)?.(comp, entry, telemetry)
+): boolean {
+  const update = updaters.get(built.object)
+  if (!update) return false
+  update(comp, entry, telemetry)
+  return true
 }
 
 const TEXTURE_SLOTS = [

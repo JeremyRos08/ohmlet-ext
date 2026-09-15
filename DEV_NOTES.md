@@ -22,6 +22,18 @@ establish full Arduino peripheral compatibility or validate a particular
 user sketch. Next useful check: flash a representative Uno/Nano HEX and
 exercise its GPIO/ADC connections and serial monitor in the browser.
 
+## Workbench checkpoint — 2026-09-15
+
+The scope now supports 10 ms capture, freeze/resume, CSV export, trigger
+edges, channel enable, and min/max/Vpp/mean/RMS/frequency/duty measurements.
+The 3D workbench adds isometric/top/front/side camera views, selection focus,
+and an electrical-net inspector that highlights connected holes, pins, and
+wires with the live measured voltage when simulation is running.
+
+Arduino USB power is treated as a valid supply and ground reference, so a
+standalone Uno/Nano divider can be simulated without adding a virtual bench
+power supply. Endpoint voltage lookups are cached per engine topology.
+
 ## Validation
 
 Before merging substantial changes:

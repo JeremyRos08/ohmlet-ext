@@ -1,0 +1,18 @@
+.workbench-tools { position:fixed; top:20px; left:96px; z-index:35; display:flex; align-items:flex-start; gap:6px; color:#e6edf7; font:12px var(--lg-font); }
+.workbench-tools button,.workbench-tools summary,.net-inspector button { padding:9px 12px; border:1px solid #61778d55; border-radius:10px; color:inherit; background:#19232ee8; cursor:pointer; font:inherit; min-height:36px; }
+.workbench-tools button[aria-pressed="true"] { border-color:#41f5bf; color:#41f5bf; }
+.workbench-tools button:disabled { opacity:.4; cursor:default; }
+.workbench-view-menu { margin-top:6px; display:grid; gap:3px; padding:5px; background:#111b26f5; border-radius:12px; box-shadow:0 10px 30px #0006; }
+.net-inspector { position:fixed; top:76px; left:96px; width:280px; max-height:60vh; overflow:auto; z-index:34; background:#111b26f2; border:1px solid #41f5bf44; border-radius:16px; box-shadow:0 16px 45px #0005; padding:16px; color:#dfeaf5; font:12px/1.5 var(--lg-font); backdrop-filter:blur(16px); }
+.net-inspector header,.net-reading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.net-inspector header strong { font-size:15px; }.net-inspector header button { padding:3px 10px; }
+.net-inspector p,.net-inspector small { color:#a2b6c9; }.net-inspector form { display:flex; gap:6px; }
+.net-inspector input { background:#080f19; border:1px solid #4c657b; border-radius:8px; padding:8px; color:#ecf5ff; width:100%; min-width:0; font:inherit; }
+.net-reading { margin-top:16px; }.net-reading strong { color:#41f5bf; font-size:19px; font-variant-numeric:tabular-nums; }
+.net-pins { display:flex; flex-wrap:wrap; gap:5px; margin:10px 0; }.net-pins button { padding:5px 8px; font-size:11px; }
+.workbench-tools :focus-visible,.net-inspector :focus-visible { outline:2px solid #41f5bf; outline-offset:2px; }
+@media(max-width:899px) {
+  .workbench-tools { top:auto; bottom:calc(var(--lg-safe-bottom, 0px) + 96px); left:auto; right:12px; }
+  .workbench-tools details[open] .workbench-view-menu { position:absolute; right:0; bottom:45px; min-width:155px; }
+  .net-inspector { top:auto; bottom:calc(var(--lg-safe-bottom, 0px) + 144px); left:12px; width:calc(100vw - 56px); max-height:38vh; }
+}

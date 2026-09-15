@@ -1,3 +1,4 @@
+import { scopeSampleInterval } from '../analysis/scope'
 /**
  * Real application store (glue agent): implements the AppState contract from
  * src/state/types.ts with zustand, and owns the simulation loop.
@@ -72,7 +73,6 @@ const LS_API_KEY = 'bb.apiKey'
 const AUTOSAVE_DEBOUNCE_MS = 500
 const FRAME_BUDGET_MS = 8
 const REACT_PUSH_MS = 100 // ~10 Hz React state updates
-const SCOPE_SAMPLE_DT = 1e-3 // one scope sample per simulated millisecond
 const MAX_FRAME_WALL_DT = 0.25 // clamp huge frame gaps (tab was hidden)
 
 const EMPTY_LAYOUT: CircuitLayout = { version: 1, components: [], wires: [] }
@@ -633,14 +633,14 @@ function refreshProbes(layout: CircuitLayout): void {
 }
 
 function takeScopeSample(t: number): void {
-  if (!engine) return
+  if (!engine || probes.length === 0) return
   const v: [number, number, number, number] = [NaN, NaN, NaN, NaN]
   for (const p of probes) v[p.channel] = engine.netVoltage(p.ref)
   scopeBuf.push({ t, v })
 }
 
 function trimScope(now: number, timeWindow: number): void {
-  const cutoff = now - timeWindow
+  const cutoff = now - timeWindow * 2 // retain pre/post-trigger history
   let drop = 0
   while (drop < scopeBuf.length && scopeBuf[drop].t < cutoff) drop++
   if (drop > 0) scopeBuf.splice(0, drop)
@@ -699,7 +699,7 @@ function frame(nowMs: number): void {
     if (sliceEnd > before) engine.advance(sliceEnd - before, DEFAULT_DT)
     if (engine.time >= nextSampleT - DEFAULT_DT * 0.5) {
       takeScopeSample(engine.time)
-      nextSampleT = engine.time + SCOPE_SAMPLE_DT
+      nextSampleT = engine.time + (probes.length ? scopeSampleInterval(s.scope.timeWindow) : 1e-3)
     }
     if (engine.time <= before && sliceEnd > before) break // safety: no progress
     if (performance.now() >= deadline) break

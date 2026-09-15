@@ -186,6 +186,18 @@ export function buildNetlist(layout: CircuitLayout): Netlist {
     if (fg) ground = uf.find(netIdForTerminal(fg.id, 'gnd'))
   }
   if (!ground) {
+    // USB-powered Arduino boards provide a valid reference without a bench PSU.
+    for (const comp of components) {
+      if (!['arduino_uno_r3', 'arduino_nano'].includes(comp.type) || comp.params?.usbPower === false) continue
+      const entry = getEntry(comp.type)
+      if (!entry) continue
+      const holes = entry.placement === 'offboard' ? null : componentPinHoles(comp, entry, board)
+      const id = pinNetId(comp, entry, holes, 'GND1')
+      if (id) ground = uf.find(id)
+      if (ground) break
+    }
+  }
+  if (!ground) {
     ground = nets.length > 0 ? nets[0] : null
     warnings.push('no ground')
   }

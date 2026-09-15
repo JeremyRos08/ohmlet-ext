@@ -140,6 +140,7 @@ export class SimEngine {
   private readonly netlist: Netlist
   private readonly board: BoardConfig
   private readonly netIndex = new Map<string, number>()
+  private readonly endpointNodes = new Map<EndpointRef, number>()
   private readonly sys: MnaSystem
   private readonly x: Float64Array
   private readonly runtimes: CompRuntime[] = []
@@ -199,7 +200,7 @@ export class SimEngine {
           continue
         }
         rt.entry = entry
-        if (comp.type === 'power_supply') hasSupply = true
+        if (comp.type === 'power_supply' || (['arduino_uno_r3', 'arduino_nano'].includes(comp.type) && comp.params?.usbPower !== false)) hasSupply = true
 
         const nodes = this.resolvePinNodes(comp, entry)
         if (!nodes) {
@@ -396,7 +397,11 @@ export class SimEngine {
   /** Live tweaks while running: pot position, switch state, pressed, light, voltage… */
   setRuntimeParam(componentId: string, key: string, value: ParamValue): void {
     const device = this.deviceById.get(componentId)
-    if (!device) return
+    if (!device) {
+      const rt = this.chips.find((c) => c.chip.comp.id === componentId)
+      if (rt) rt.chip.comp = { ...rt.chip.comp, params: { ...rt.chip.comp.params, [key]: value } }
+      return
+    }
     try {
       device.setRuntimeParam(key, value)
     } catch {
@@ -406,11 +411,13 @@ export class SimEngine {
 
   /** Voltage of the net a hole/terminal ref belongs to; NaN if unknown. */
   netVoltage(ref: EndpointRef): number {
-    const net = this.netlist.netOf(ref)
-    if (!net) return NaN
-    if (net === this.netlist.ground) return 0
-    const idx = this.netIndex.get(net)
-    return idx === undefined ? NaN : this.x[idx]
+    let node = this.endpointNodes.get(ref)
+    if (node === undefined) {
+      node = this.nodeOfNet(this.netlist.netOf(ref))
+      // The topology is immutable for the lifetime of this engine.
+      this.endpointNodes.set(ref, node)
+    }
+    return this.nodeVoltage(node)
   }
 
   // ------------------------------------------------------------ internals

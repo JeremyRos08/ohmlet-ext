@@ -13,7 +13,9 @@
  * UI chrome state (which sheet is open, onboarding…) lives HERE in React
  * state — never in the store.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { WorkbenchTools } from './ui/chrome/WorkbenchTools'
+import type { CameraView } from './three/internal/camera-views'
 import type { AppState, GrowDirection, MoveTarget } from './state/types'
 import { boardConfigOf } from './model/types'
 import type { HoleRef, Rotation } from './model/types'
@@ -399,6 +401,17 @@ type DockKey = SheetKey | 'wire' | 'none'
 export default function App() {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const isDesktop = useIsDesktop()
+  const sceneRef = useRef<BreadboardScene | null>(null)
+  const [inspecting, setInspecting] = useState(false)
+  const inspectRef = useRef(false)
+  const [inspectedEndpoint, setInspectedEndpoint] = useState('')
+  const onView = useCallback((view: CameraView, selected = false) => sceneRef.current?.setCameraView(view, selected), [])
+  const onHighlight = useCallback((endpoints: string[], wires: string[]) => sceneRef.current?.setNetHighlight(endpoints, wires), [])
+  const toggleInspect = () => {
+    const next = !inspecting
+    inspectRef.current = next; setInspecting(next)
+    if (next) useStore.getState().setMode({ kind: 'select' })
+  }
 
   // --- chrome state machine (React state, never the store) ---
   const [activeSheet, setActiveSheet] = useState<SheetKey | null>(null)
@@ -423,16 +436,21 @@ export default function App() {
 
     const scene = new BreadboardScene()
     scene.mount(container)
+    sceneRef.current = scene
     // latest Studio render progress (COPIED — the engine reuses the payload
     // object); the capsule gets every update, the ?shotrig harness polls it
     // to await a converged still deterministically
     let lastRenderProgress: RenderProgress | null = null
     scene.setCallbacks({
-      onHoleClick: handleHoleClick,
+      onHoleClick: (ref) => inspectRef.current ? setInspectedEndpoint(ref) : handleHoleClick(ref),
       onHoleHover: (h: HoleRef | null) => useStore.getState().setHoverHole(h),
-      onObjectClick: handleObjectClick,
+      onObjectClick: (id, additive) => {
+        const wire = inspectRef.current ? useStore.getState().layout.wires.find((w) => w.id === id) : null
+        if (wire) setInspectedEndpoint(wire.from)
+        else handleObjectClick(id, additive)
+      },
       onBackgroundClick: handleBackgroundClick,
-      onTerminalClick: handleTerminalClick,
+      onTerminalClick: (ref) => inspectRef.current ? setInspectedEndpoint(ref) : handleTerminalClick(ref),
       onHoleOcclusionRejected: handleHoleOcclusionRejected,
       onObjectLongPress: (id: string) => setActionTarget(id),
       onAddBoardClick: handleAddBoardClick, // legacy fallback (onGrowGrid wins)
@@ -499,6 +517,7 @@ export default function App() {
       setLayoutLoadedSink(null)
       setTelemetrySink(null)
       unsub()
+      sceneRef.current = null
       scene.dispose()
     }
   }, [])
@@ -514,6 +533,9 @@ export default function App() {
       if (isEditableTarget(e.target)) return
       const st = useStore.getState()
       const key = e.key.toLowerCase()
+      if (key === 'f' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault(); sceneRef.current?.setCameraView('iso', st.selection.length > 0); return
+      }
       if ((e.metaKey || e.ctrlKey) && key === 'z') {
         e.preventDefault()
         if (e.shiftKey) st.redo()
@@ -721,6 +743,8 @@ export default function App() {
 
       {/* top-center run capsule */}
       <StatusBar />
+      <WorkbenchTools onView={onView} inspecting={inspecting} onInspect={toggleInspect}
+        endpoint={inspectedEndpoint} onEndpoint={setInspectedEndpoint} onHighlight={onHighlight} />
 
       {/* empty-state card */}
       {emptyVisible && (

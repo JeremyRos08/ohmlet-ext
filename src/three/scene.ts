@@ -1,3 +1,4 @@
+import { fitCameraView, type CameraView } from './internal/camera-views'
 /**
  * The 3D breadboard scene — implements IBreadboardScene (src/three/scene-api.ts).
  *
@@ -926,6 +927,9 @@ export class BreadboardScene implements IBreadboardScene {
   private telemetry: SimTelemetry | null = null
   private ghost: GhostSpec | null = null
   private selectedIds: string[] = []
+  private netWireIds: string[] = []
+  private netMarkers: THREE.InstancedMesh<THREE.RingGeometry, THREE.MeshBasicMaterial> | null = null
+  private netEndpoints: string[] = []
   private preview: { from: HoleRef | string | null; to: HoleRef | null } = { from: null, to: null }
   /** render-mode preference set before mount (host picker); null = unset */
   private renderModePref: RenderModeId | null = null
@@ -1725,6 +1729,7 @@ export class BreadboardScene implements IBreadboardScene {
     m.controls.dispose()
 
     this.clearSelectionHighlights()
+    this.clearNetMarkers()
     for (const id of Array.from(this.components.keys())) this.removeComponentRecord(m, id)
     for (const id of Array.from(this.wires.keys())) this.removeWireRecord(m, id)
     this.components.clear()
@@ -1860,6 +1865,61 @@ export class BreadboardScene implements IBreadboardScene {
    * anywhere on the board, and the fixed home framing crops phone portrait
    * viewports to a fraction of it. Empty board → home framing.
    */
+  setCameraView(view: CameraView, selectionOnly = false): void {
+    const m = this.m
+    if (!m) return
+    const box = new THREE.Box3()
+    if (selectionOnly) {
+      for (const id of this.selectedIds) {
+        const object = this.components.get(id)?.built.object ?? this.wires.get(id)?.group
+        if (object) box.expandByObject(object)
+      }
+    } else {
+      box.expandByObject(m.componentsGroup); box.expandByObject(m.wiresGroup)
+      box.expandByObject(m.terminalsGroup)
+    }
+    if (box.isEmpty()) {
+      const b = this.homeBounds()
+      box.set(new THREE.Vector3(b.minX, 0, b.minZ), new THREE.Vector3(b.maxX, 2, b.maxZ))
+    }
+    const fit = fitCameraView(box, view, m.camera.fov, m.camera.aspect)
+    m.controls.maxDistance = Math.max(m.controls.maxDistance, fit.distance * 1.2)
+    this.flyCamera(m, fit.position, fit.target)
+  }
+
+  setNetHighlight(endpoints: string[], wires: string[]): void {
+    this.netEndpoints = endpoints
+    this.netWireIds = wires
+    this.rebuildNetMarkers()
+    this.applySelection()
+  }
+
+  private clearNetMarkers(): void {
+    if (!this.netMarkers) return
+    this.netMarkers.removeFromParent()
+    this.netMarkers.geometry.dispose(); this.netMarkers.material.dispose()
+    this.netMarkers.dispose()
+    this.netMarkers = null
+  }
+
+  private rebuildNetMarkers(): void {
+    this.clearNetMarkers()
+    const m = this.m
+    if (!m || !this.netEndpoints.length) return
+    const points = this.netEndpoints.map((ref) => this.resolveEndpoint(ref)).filter((p): p is THREE.Vector3 => p !== null)
+    if (!points.length) return
+    const geometry = new THREE.RingGeometry(0.23, 0.36, 16)
+    geometry.rotateX(-Math.PI / 2)
+    const material = new THREE.MeshBasicMaterial({ color: 0x41f5bf, side: THREE.DoubleSide, depthTest: false, depthWrite: false })
+    const mesh = new THREE.InstancedMesh(geometry, material, points.length)
+    const matrix = new THREE.Matrix4()
+    points.forEach((p, i) => mesh.setMatrixAt(i, matrix.makeTranslation(p.x, p.y + 0.09, p.z)))
+    mesh.instanceMatrix.needsUpdate = true
+    mesh.name = 'inspected-net'; mesh.renderOrder = 5; mesh.frustumCulled = false
+    mesh.layers.enable(OVERLAY_LAYER)
+    m.overlayGroup.add(mesh); this.netMarkers = mesh
+  }
+
   frameContent(): void {
     this.reframeCamera()
   }
@@ -1972,6 +2032,8 @@ export class BreadboardScene implements IBreadboardScene {
     // (no-op in Performance/Enhanced; rebuild runs off the interaction path
     // — only on an idle Studio frame, on a worker when available)
     this.modes.invalidate()
+
+    this.rebuildNetMarkers()
 
     // off-board instruments and board rig changes grow/shrink the home
     // extents; while the camera is parked at home, follow it so a freshly
@@ -2383,13 +2445,13 @@ export class BreadboardScene implements IBreadboardScene {
   private applyTelemetryAll(): void {
     const t = this.telemetry
     for (const [id, rec] of this.components) {
-      updateComponentVisual(rec.built, rec.comp, rec.entry, t ? (t.components[id] ?? null) : null)
+      const updated = updateComponentVisual(rec.built, rec.comp, rec.entry, t ? (t.components[id] ?? null) : null)
       // transforms are frozen (B2) and updaters may pose children (button
       // caps, switch levers, pot knobs) — recompose the subtree after each
       // applied update. This runs only on telemetry/layout CHANGES (exactly
       // where auto-update used to pay every frame), never during pure
       // camera motion.
-      rec.built.object.traverse(refreshMatrixOf)
+      if (updated) rec.built.object.traverse(refreshMatrixOf)
     }
   }
 
@@ -2591,7 +2653,7 @@ export class BreadboardScene implements IBreadboardScene {
     this.clearSelectionHighlights()
     const m = this.m
     if (!m) return
-    for (const id of this.selectedIds) {
+    for (const id of new Set([...this.netWireIds, ...this.selectedIds])) {
       const compRec = this.components.get(id)
       if (compRec) {
         this.addSelectionBox(m, compRec.built.object)
@@ -2606,7 +2668,7 @@ export class BreadboardScene implements IBreadboardScene {
             intensity: mat.emissiveIntensity,
           })
         }
-        mat.emissive.setHex(SELECT_EMISSIVE)
+        mat.emissive.setHex(this.selectedIds.includes(id) ? SELECT_EMISSIVE : 0x20d6a0)
         mat.emissiveIntensity = SELECT_INTENSITY
       }
     }

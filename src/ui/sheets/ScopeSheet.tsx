@@ -8,7 +8,9 @@
  * frame (paused sim → near-zero cost). Window picker is a kit Segmented;
  * channel legend chips light up per live probe presence.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { analyzeChannel, scopeCsv, traceEnvelope, triggerWindow } from '../../analysis/scope'
+import './ScopeTools.css'
 import { useStore } from '../../state/store'
 import type { ScopeSample } from '../../model/types'
 import { Segmented, Sheet, type SegmentedOption } from '../kit'
@@ -19,6 +21,7 @@ const SNAP_POINTS = [0.4, 0.8] as const
 export const TRACE_COLORS = ['#ffd84a', '#43d9f6', '#ff5dd8', '#62e979'] // ch1..4
 
 const WINDOW_OPTIONS: readonly SegmentedOption<string>[] = [
+  { value: '0.01', label: '10 ms' },
   { value: '0.1', label: '0.1 s' },
   { value: '1', label: '1 s' },
   { value: '5', label: '5 s' },
@@ -37,6 +40,26 @@ export function ScopeSheet({ open, onDismiss, desktop = false }: ScopeSheetProps
   const timeWindow = useStore((s) => s.scope.timeWindow)
   const setScopeWindow = useStore((s) => s.setScopeWindow)
   const components = useStore((s) => s.layout.components)
+  const scope = useStore((s) => s.scope)
+  const [frozen, setFrozen] = useState<{ samples: ScopeSample[]; window: number } | null>(null)
+  const [enabled, setEnabled] = useState([true, true, true, true])
+  const [edge, setEdge] = useState<'auto' | 'rising' | 'falling'>('auto')
+  const [channel, setChannel] = useState(0)
+  const [level, setLevel] = useState('2.5')
+  const displayWindow = frozen?.window ?? timeWindow
+  const triggered = useMemo(() => edge === 'auto' || !open ? null :
+    triggerWindow(scope.samples, timeWindow, channel, Number(level), edge), [scope, timeWindow, channel, level, edge, open])
+  const samples = frozen?.samples ?? triggered ?? scope.samples
+  const visible = useMemo(() => {
+    const end = (samples.length ? samples[samples.length - 1].t : undefined) ?? 0
+    return samples.filter((s) => s.t >= end - displayWindow)
+  }, [scope, samples, displayWindow])
+  const measurements = useMemo(() => enabled.map((_, i) => analyzeChannel(visible, i)), [visible, enabled])
+  const exportCsv = () => {
+    const url = URL.createObjectURL(new Blob([scopeCsv(visible)], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a'); a.href = url; a.download = 'ohmlet-scope.csv'; a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
 
   // present at the half (0.4) detent every time; user can drag to 0.8
   const [snap, setSnap] = useState(0)
@@ -72,18 +95,53 @@ export function ScopeSheet({ open, onDismiss, desktop = false }: ScopeSheetProps
 
         <div className="asm-scope-legend">
           {TRACE_COLORS.map((color, i) => (
-            <span
+            <button
+              type="button"
+              aria-pressed={enabled[i]}
+              onClick={() => setEnabled((old) => old.map((v, ch) => ch === i ? !v : v))}
               key={i}
-              className={`asm-scope-chip ${attached[i] ? '' : 'is-off'}`}
+              className={`asm-scope-chip ${attached[i] && enabled[i] ? '' : 'is-off'}`}
               title={attached[i] ? `Channel ${i + 1}` : `Channel ${i + 1} — no probe placed`}
             >
               <span className="asm-scope-chip-dot" style={{ background: color }} />
               CH{i + 1}
-            </span>
+            </button>
           ))}
         </div>
 
-        <ScopeCanvas active={open} />
+        <div className="scope-tools">
+          <button type="button" onClick={() => setFrozen(frozen ? null : { samples: visible.slice(), window: displayWindow })}>
+            {frozen ? 'Resume capture' : 'Freeze capture'}
+          </button>
+          <button type="button" disabled={!visible.length} onClick={exportCsv}>Export CSV</button>
+          <span>{frozen ? 'Frozen · circuit keeps running' : edge === 'auto' ? 'Live capture' : triggered ? 'Triggered' : 'Waiting for edge · live preview'}</span>
+        </div>
+        <div className="scope-trigger">
+          <label>Trigger<select aria-label="Trigger edge" value={edge} onChange={(e) => setEdge(e.target.value as typeof edge)}>
+            <option value="auto">Auto</option><option value="rising">Rising edge</option><option value="falling">Falling edge</option>
+          </select></label>
+          <label>Source<select aria-label="Trigger channel" value={channel} onChange={(e) => setChannel(Number(e.target.value))}>
+            {[0, 1, 2, 3].map((ch) => <option key={ch} value={ch}>CH{ch + 1}</option>)}
+          </select></label>
+          <label>Level (V)<input aria-label="Trigger level" type="number" step="0.1" value={level} onChange={(e) => setLevel(e.target.value)} /></label>
+        </div>
+        <ScopeCanvas active={open} samples={visible} timeWindow={displayWindow} enabled={enabled} />
+        <div className="scope-measurements">
+          {measurements.map((m, i) => enabled[i] && attached[i] && m ? (
+            <div key={i} className="scope-measure-card" style={{ borderColor: TRACE_COLORS[i] }}>
+              <strong style={{ color: TRACE_COLORS[i] }}>CH{i + 1}</strong>
+              <dl>
+                <dt>Min / Max</dt><dd>{m.min.toFixed(3)} / {m.max.toFixed(3)} V</dd>
+                <dt>Vpp</dt><dd>{m.peakToPeak.toFixed(3)} V</dd>
+                <dt>Mean / RMS</dt><dd>{m.mean.toFixed(3)} / {m.rms.toFixed(3)} V</dd>
+                <dt>Frequency</dt><dd>{m.frequency === null ? '—' : `${m.frequency.toFixed(2)} Hz`}</dd>
+                <dt>Duty</dt><dd>{m.duty === null ? '—' : `${m.duty.toFixed(1)} %`}</dd>
+                <dt>Sample rate</dt><dd>{m.sampleRate === null ? '—' : `${(m.sampleRate / 1000).toFixed(1)} kSa/s`}</dd>
+              </dl>
+            </div>
+          ) : null)}
+        </div>
+        <p className="scope-note">Measurements use captured samples. Fast signals can alias; use 10 ms or 0.1 s for 20 kSa/s capture. Duty uses the midpoint voltage threshold.</p>
 
         <Segmented
           value={String(timeWindow)}
@@ -101,50 +159,25 @@ export function ScopeSheet({ open, onDismiss, desktop = false }: ScopeSheetProps
  * its refs are always live. `active=false` (sheet closing) cancels the loop
  * immediately: no rAF runs while the sheet is closed.
  */
-function ScopeCanvas({ active }: { active: boolean }) {
+function ScopeCanvas({ active, samples, timeWindow, enabled }: {
+  active: boolean; samples: ScopeSample[]; timeWindow: number; enabled: boolean[]
+}) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-
   useEffect(() => {
-    if (!active) return
-    const wrap = wrapRef.current
-    const canvas = canvasRef.current
-    if (!wrap || !canvas) return
-
-    let resizeStamp = 0
-    const ro = new ResizeObserver(() => {
+    if (!active || !wrapRef.current || !canvasRef.current) return
+    const wrap = wrapRef.current, canvas = canvasRef.current
+    const draw = () => {
       const rect = wrap.getBoundingClientRect()
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       canvas.width = Math.max(1, Math.round(rect.width * dpr))
       canvas.height = Math.max(1, Math.round(rect.height * dpr))
-      resizeStamp++
-    })
-    ro.observe(wrap)
-
-    let raf = 0
-    let lastKey = ''
-    const loop = () => {
-      raf = requestAnimationFrame(loop)
-      const st = useStore.getState()
-      const samples = st.scope.samples
-      const lastT = samples.length > 0 ? samples[samples.length - 1].t : -1
-      const key = `${samples.length}:${lastT}:${st.scope.timeWindow}:${resizeStamp}:${canvas.width}x${canvas.height}`
-      if (key === lastKey) return // nothing changed since last draw — skip
-      lastKey = key
-      drawScope(canvas, samples, st.scope.timeWindow)
+      drawScope(canvas, samples, timeWindow, enabled)
     }
-    raf = requestAnimationFrame(loop)
-    return () => {
-      ro.disconnect()
-      cancelAnimationFrame(raf)
-    }
-  }, [active])
-
-  return (
-    <div ref={wrapRef} className="asm-scope-body">
-      <canvas ref={canvasRef} className="asm-scope-canvas" />
-    </div>
-  )
+    const ro = new ResizeObserver(draw); ro.observe(wrap); draw()
+    return () => ro.disconnect()
+  }, [active, samples, timeWindow, enabled])
+  return <div ref={wrapRef} className="asm-scope-body"><canvas ref={canvasRef} className="asm-scope-canvas" aria-label="Captured voltage waveforms" /></div>
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +205,7 @@ function fmtTimeOffset(dt: number, window: number): string {
   return `${dt.toFixed(1)}s`
 }
 
-function drawScope(canvas: HTMLCanvasElement, samples: ScopeSample[], timeWindow: number): void {
+function drawScope(canvas: HTMLCanvasElement, samples: ScopeSample[], timeWindow: number, enabled: boolean[]): void {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -207,6 +240,7 @@ function drawScope(canvas: HTMLCanvasElement, samples: ScopeSample[], timeWindow
   for (let i = i0; i < samples.length; i++) {
     const v = samples[i].v
     for (let c = 0; c < 4; c++) {
+      if (!enabled[c]) continue
       const x = v[c]
       if (Number.isFinite(x)) {
         if (x < vmin) vmin = x
@@ -295,22 +329,21 @@ function drawScope(canvas: HTMLCanvasElement, samples: ScopeSample[], timeWindow
     return
   }
 
-  const count = samples.length - i0
-  const stride = Math.max(1, Math.floor(count / (pw * 2))) // decimate dense buffers
   ctx.lineWidth = 1.5
   ctx.lineJoin = 'round'
   for (let c = 0; c < 4; c++) {
+    if (!enabled[c]) continue
     ctx.strokeStyle = TRACE_COLORS[c]
     ctx.beginPath()
     let pen = false
     let drew = false
-    for (let i = i0; i < samples.length; i += stride) {
-      const v = samples[i].v[c]
+    for (const point of traceEnvelope(samples, c, tStart, tEnd, Math.ceil(pw))) {
+      const v = point.v
       if (!Number.isFinite(v)) {
         pen = false // NaN = channel unattached / gap → lift the pen
         continue
       }
-      const x = xOf(samples[i].t)
+      const x = xOf(point.t)
       const y = yOf(v)
       if (pen) {
         ctx.lineTo(x, y)

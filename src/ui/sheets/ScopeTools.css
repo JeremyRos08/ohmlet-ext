@@ -1,0 +1,15 @@
+.scope-tools { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:10px 0; }
+.scope-tools button,.scope-trigger select,.scope-trigger input { color:var(--lg-text, #edf4ff); background:rgba(130,160,190,.13); border:1px solid rgba(155,190,220,.2); border-radius:9px; padding:8px 10px; font:inherit; }
+.scope-tools button { cursor:pointer; min-height:36px; }
+.scope-tools button:disabled { opacity:.4; cursor:default; }
+.scope-tools span,.scope-note { color:var(--lg-secondary, #94a3b8); font-size:11px; line-height:1.5; }
+.scope-trigger { display:flex; gap:8px; margin-bottom:10px; }
+.scope-trigger label { display:flex; flex:1; flex-direction:column; gap:4px; font-size:11px; min-width:0; }
+.scope-trigger input,.scope-trigger select { width:100%; box-sizing:border-box; min-width:0; }
+.scope-trigger option { background:#17202c; }
+.scope-measurements { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px; margin:12px 0; }
+.scope-measure-card { border-left:2px solid; background:rgba(80,110,150,.08); border-radius:8px; padding:10px; font-size:11px; }
+.scope-measure-card dl { display:grid; grid-template-columns:auto 1fr; gap:5px 9px; margin:8px 0 0; }
+.scope-measure-card dt { color:#92a3b6; }.scope-measure-card dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+.asm-scope-chip { cursor:pointer; color:inherit; }
+.scope-tools button:focus-visible,.scope-trigger input:focus-visible,.scope-trigger select:focus-visible { outline:2px solid #43d9f6; outline-offset:2px; }

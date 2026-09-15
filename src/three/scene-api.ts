@@ -183,6 +183,8 @@ export interface IBreadboardScene {
    * framing when the board is empty. Safe to never call.
    */
   frameContent?(): void
+  setCameraView?(view: 'iso' | 'top' | 'front' | 'side', selectionOnly?: boolean): void
+  setNetHighlight?(endpoints: string[], wireIds: string[]): void
   /**
    * OPTIONAL (additive): apply the user's render-mode preference (the
    * Performance / Enhanced / Studio picker in the More sheet →

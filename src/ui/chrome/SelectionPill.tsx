@@ -16,7 +16,6 @@ import { createPortal } from 'react-dom'
 import { useStore } from '../../state/store'
 import { ActionSheet, pressProps, tick, useIsDesktop } from '../kit'
 import { InstrumentHud } from './InstrumentHud'
-import { Esp32FirmwareOverlay } from './Esp32FirmwareOverlay'
 import './SelectionPill.css'
 
 /** Matches the exit transition (--lg-dur-control 200ms) with a little slack. */
@@ -82,7 +81,6 @@ export function SelectionPill() {
   return (
     <>
       <InstrumentHud />
-      <Esp32FirmwareOverlay />
 
       {mounted &&
         createPortal(
