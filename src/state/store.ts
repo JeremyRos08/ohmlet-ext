@@ -61,7 +61,7 @@ import {
 } from '../three/render-modes/capability'
 import { DEFAULT_DT, SimEngine } from '../sim/engine'
 import '../sim/chips/all' // side-effect: register every behavioral chip model
-import { generateCircuit } from '../llm/generate'
+import { STARTER_LAYOUT } from '../model/starter-layout'
 import { LayoutHistory } from './history'
 
 // ---------------------------------------------------------------------------
@@ -69,7 +69,6 @@ import { LayoutHistory } from './history'
 // ---------------------------------------------------------------------------
 
 const LS_LAYOUT = 'bb.layout'
-const LS_API_KEY = 'bb.apiKey'
 const AUTOSAVE_DEBOUNCE_MS = 500
 const FRAME_BUDGET_MS = 8
 const REACT_PUSH_MS = 100 // ~10 Hz React state updates
@@ -509,13 +508,6 @@ export function stripTransientParams(layout: CircuitLayout): CircuitLayout {
 // localStorage boot / autosave
 // ---------------------------------------------------------------------------
 
-function loadSavedApiKey(): string {
-  try {
-    return window.localStorage.getItem(LS_API_KEY) ?? ''
-  } catch {
-    return ''
-  }
-}
 
 /** Persisted render-mode pref; null when unset/unknown (device auto-default). */
 function loadSavedRenderMode(): RenderModeId | null {
@@ -530,16 +522,17 @@ function loadSavedRenderMode(): RenderModeId | null {
 }
 
 function loadSavedLayout(): CircuitLayout {
+  if (typeof window === 'undefined') return EMPTY_LAYOUT
   try {
     const raw = window.localStorage.getItem(LS_LAYOUT)
-    if (!raw) return EMPTY_LAYOUT
+    if (!raw) return STARTER_LAYOUT
     const parsed: unknown = JSON.parse(raw)
     const res = validateLayout(parsed)
     if (res.ok && res.layout) return res.layout
   } catch {
     /* corrupted save / no storage: start empty */
   }
-  return EMPTY_LAYOUT
+  return STARTER_LAYOUT
 }
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null
@@ -615,7 +608,6 @@ export function setLayoutLoadedSink(sink: (() => void) | null): void {
  * engine — never inside React state). Non-null exactly while a generation is
  * running. Cancellation is exposed as the `cancelGeneration` store action.
  */
-let generateAbort: AbortController | null = null
 
 function refreshProbes(layout: CircuitLayout): void {
   probes = []
@@ -797,15 +789,6 @@ export const useStore = create<AppState>()((set, get) => {
     issues: [],
     scope: { samples: [], timeWindow: 5 },
 
-    // --- llm ----------------------------------------------------------------
-    llm: {
-      apiKey: loadSavedApiKey(),
-      busy: false,
-      status: '',
-      explanation: null,
-      pending: null,
-      error: null,
-    },
 
     // --- actions: document --------------------------------------------------
 
@@ -1380,93 +1363,6 @@ export const useStore = create<AppState>()((set, get) => {
       set({ scope: { samples: scopeBuf, timeWindow: seconds } })
     },
 
-    // --- actions: llm --------------------------------------------------------
 
-    setApiKey(k) {
-      set({ llm: { ...get().llm, apiKey: k } })
-      try {
-        window.localStorage.setItem(LS_API_KEY, k)
-      } catch {
-        /* storage unavailable */
-      }
-    },
-
-    cancelGeneration() {
-      if (!generateAbort) return
-      generateAbort.abort()
-      // don't let in-flight progress overwrite the terminal status
-      if (get().llm.busy) set({ llm: { ...get().llm, status: 'cancelling…' } })
-    },
-
-    async generateFromPrompt(prompt) {
-      if (get().llm.busy) return
-      const controller = new AbortController()
-      generateAbort = controller
-      set({
-        llm: {
-          ...get().llm,
-          busy: true,
-          status: 'starting…',
-          error: null,
-          pending: null,
-          explanation: null,
-        },
-      })
-      try {
-        const res = await generateCircuit({
-          apiKey: get().llm.apiKey,
-          prompt,
-          boardConfig: boardConfigOf(get().layout),
-          onStatus: (status) => {
-            // don't let in-flight progress overwrite the 'cancelling…' status
-            if (!controller.signal.aborted) set({ llm: { ...get().llm, status } })
-          },
-          signal: controller.signal,
-        })
-        set({
-          llm: {
-            ...get().llm,
-            busy: false,
-            status: '',
-            pending: res.layout,
-            explanation: res.explanation,
-            error: null,
-          },
-        })
-      } catch (err) {
-        // user-initiated cancel returns the panel to idle without an error
-        const cancelled = controller.signal.aborted
-        set({
-          llm: {
-            ...get().llm,
-            busy: false,
-            status: '',
-            error: cancelled ? null : err instanceof Error ? err.message : String(err),
-          },
-        })
-      } finally {
-        if (generateAbort === controller) generateAbort = null
-      }
-    },
-
-    applyPending() {
-      const pending = get().llm.pending
-      if (!pending) return
-      const res = get().loadLayout(pending)
-      if (res.ok) {
-        set({ llm: { ...get().llm, pending: null, explanation: null, error: null } })
-      } else {
-        set({
-          llm: {
-            ...get().llm,
-            error: `Generated circuit failed validation: ${res.errors.join('; ')}`,
-          },
-        })
-      }
-    },
-
-    discardPending() {
-      set({ llm: { ...get().llm, pending: null, explanation: null } })
-    },
   }
 })

@@ -55,18 +55,6 @@ export type MoveTarget = { anchor: HoleRef } | { dCol: number; dRowLattice: numb
  */
 export type GrowDirection = 'right' | 'left' | 'up' | 'down'
 
-export interface LlmState {
-  apiKey: string
-  busy: boolean
-  /** human-readable progress line while generating ("thinking…", "validating…", "repairing…") */
-  status: string
-  /** model's explanation of the generated circuit */
-  explanation: string | null
-  /** generated layout awaiting Apply/Discard */
-  pending: CircuitLayout | null
-  error: string | null
-}
-
 export interface AppState {
   // --- document ---
   layout: CircuitLayout
@@ -100,8 +88,6 @@ export interface AppState {
    */
   renderMode: RenderModeId | null
 
-  // --- llm ---
-  llm: LlmState
 
   // --- actions: document ---
   /**
@@ -226,11 +212,5 @@ export interface AppState {
   setSimSpeed(x: number): void
   setScopeWindow(seconds: number): void
 
-  // --- actions: llm ---
-  setApiKey(k: string): void
-  generateFromPrompt(prompt: string): Promise<void>
-  /** abort the in-flight generation, if any (no-op while idle) */
-  cancelGeneration(): void
-  applyPending(): void
-  discardPending(): void
+
 }

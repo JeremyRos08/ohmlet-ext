@@ -8,7 +8,7 @@
  * board (destructive, ActionSheet confirm), Examples (statically imported
  * JSONs — fetch() can't reach repo-root files in dev — one-tap loadLayout
  * with a success toast) · [Issues] live level-colored list (tap selects the
- * component and dismisses) · [Settings] shared ApiKeyRow + About.
+ * component and dismisses) · [Settings] About.
  * [Graphics]: render-mode Segmented (Performance/Enhanced/Studio) with a
  * per-mode caption and a device-default badge, backed by the store's
  * renderMode contract.
@@ -43,7 +43,6 @@ import {
   useCoarsePointer,
   type SegmentedOption,
 } from '../kit'
-import { ApiKeyRow } from './ApiKeyRow'
 // Static imports: fetch('/examples/…') would 404 in dev (repo-root files are
 // not served), so the curated layouts are bundled (resolveJsonModule).
 import blinky555 from '../../../examples/blinky-555.json'
@@ -407,7 +406,6 @@ export function MoreSheet({ open, onDismiss, desktop = false }: MoreSheetProps) 
             </ListGroup>
 
             <ListGroup header="Settings">
-              <ApiKeyRow />
               <ListRow
                 title="About ohmlet"
                 trailing={`v${pkg.version}`}

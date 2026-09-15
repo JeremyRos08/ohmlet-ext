@@ -4,7 +4,7 @@
  * scene↔store glue (placement-by-clicks, DIP ghost, off-board immediate
  * placement, repeat placement, two-click wiring, hover ghost, selection),
  * plus the chrome state machine: StatusBar capsule (run/pause/reset), bottom
- * Dock (Parts · Wire · AI · Scope · More) opening their sheets, the
+ * Dock (Parts · Wire · Scope · More) opening their sheets, the
  * WireColorStrip while wire mode is armed, placement/wire hints as toasts,
  * the EmptyState card, first-launch Onboarding, and the long-press component
  * ActionSheet. Desktop ≥900px: the dock becomes a left rail and the sheets
@@ -31,7 +31,6 @@ import {
   ChipIcon,
   Dock,
   EllipsisIcon,
-  SparklesIcon,
   ToastHost,
   WaveformIcon,
   WireIcon,
@@ -47,7 +46,6 @@ import { UndoPill } from './ui/chrome/UndoPill'
 import { SelectionPill } from './ui/chrome/SelectionPill'
 import { RotateButton } from './ui/chrome/RotateButton'
 import { PartsSheet } from './ui/sheets/PartsSheet'
-import { AiSheet } from './ui/sheets/AiSheet'
 import { ScopeSheet } from './ui/sheets/ScopeSheet'
 import { MoreSheet } from './ui/sheets/MoreSheet'
 import { PropertiesSheet } from './ui/sheets/PropertiesSheet'
@@ -395,7 +393,7 @@ function duplicateComponent(id: string): void {
 // App
 // ---------------------------------------------------------------------------
 
-type SheetKey = 'parts' | 'ai' | 'scope' | 'more'
+type SheetKey = 'parts' | 'scope' | 'more'
 type DockKey = SheetKey | 'wire' | 'none'
 
 export default function App() {
@@ -417,7 +415,6 @@ export default function App() {
   const [activeSheet, setActiveSheet] = useState<SheetKey | null>(null)
   const [actionTarget, setActionTarget] = useState<string | null>(null)
   const [onboarding, setOnboarding] = useState(needsOnboarding)
-  const [aiPrefill, setAiPrefill] = useState<string | undefined>(undefined)
 
   const mode = useStore((s) => s.mode)
   const selection = useStore((s) => s.selection)
@@ -475,7 +472,7 @@ export default function App() {
     syncOverlays(scene, s0)
     setTelemetrySink((t) => scene.setTelemetry(t)) // also pushes current telemetry
 
-    // Loaded examples / imports / applied AI circuits can sit anywhere on the
+    // Loaded examples / imports / restored circuits can sit anywhere on the
     // board, far outside the fixed home framing of a phone viewport — spring
     // the camera to frame them. Same for a restored autosave on boot.
     setLayoutLoadedSink(() => scene.frameContent?.())
@@ -670,7 +667,6 @@ export default function App() {
   const dockItems: readonly DockItem<DockKey>[] = [
     { key: 'parts', icon: <ChipIcon size={26} />, label: 'Parts' },
     { key: 'wire', icon: <WireIcon size={26} />, label: 'Wire' },
-    { key: 'ai', icon: <SparklesIcon size={26} />, label: 'AI' },
     { key: 'scope', icon: <WaveformIcon size={26} />, label: 'Scope' },
     {
       key: 'more',
@@ -750,10 +746,6 @@ export default function App() {
       {emptyVisible && (
         <EmptyState
           onBrowseParts={() => setActiveSheet('parts')}
-          onAskAi={() => {
-            setAiPrefill('make me a circuit that displays a date')
-            setActiveSheet('ai')
-          }}
         />
       )}
 
@@ -783,15 +775,6 @@ export default function App() {
         open={activeSheet === 'parts'}
         onDismiss={() => setActiveSheet(null)}
         desktop={isDesktop}
-      />
-      <AiSheet
-        open={activeSheet === 'ai'}
-        onDismiss={() => {
-          setActiveSheet(null)
-          setAiPrefill(undefined) // prefill is a one-shot (empty-state path only)
-        }}
-        desktop={isDesktop}
-        initialPrompt={aiPrefill}
       />
       <ScopeSheet
         open={activeSheet === 'scope'}

@@ -1,12 +1,12 @@
 /**
  * Onboarding — first-launch 3-step coach overlay (DESIGN.md §2): rotate/zoom
- * gestures → parts → AI. Springy (transform/opacity only, house spring via
+ * gestures → parts → simulation. Springy (transform/opacity only, house spring via
  * the --lg-dur/--lg-spring tokens, which collapse under reduced motion),
  * skippable, 3 dots. The caller persists the 'bb.onboarded' flag in onDone.
  */
 import { useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ChipIcon, PressableButton, ResetIcon, SparklesIcon, pressProps, tick } from '../kit'
+import { ChipIcon, PlayIcon, PressableButton, ResetIcon, pressProps, tick } from '../kit'
 
 export const ONBOARDED_KEY = 'bb.onboarded'
 
@@ -46,9 +46,9 @@ const STEPS: readonly Step[] = [
     body: 'Open Parts in the dock, pick a component, then tap board holes to place it. Wire mode connects them.',
   },
   {
-    icon: <SparklesIcon size={40} />,
-    title: 'Or just ask',
-    body: 'Describe any circuit in the AI tab — it appears on the board, ready to run.',
+    icon: <PlayIcon size={40} />,
+    title: 'Simulate',
+    body: 'Tap the top capsule to run or pause the circuit. Open Scope for live waveforms and measurements.',
   },
 ]
 

@@ -70,7 +70,6 @@ export function StatusBar() {
   const running = useStore((s) => s.running)
   const simTime = useStore((s) => s.simTime)
   const issues = useStore((s) => s.issues)
-  const llm = useStore((s) => s.llm)
 
   const [detail, setDetail] = useState<string | null>(null)
   const expandTimer = useRef<number | null>(null)
@@ -106,20 +105,6 @@ export function StatusBar() {
       renderProgressSink = null
     }
   }, [])
-
-  // expand on LLM progress / errors / a finished generation
-  const prevLlmRef = useRef<{ status: string; error: string | null; pending: boolean }>({
-    status: '',
-    error: null,
-    pending: false,
-  })
-  useEffect(() => {
-    const prev = prevLlmRef.current
-    prevLlmRef.current = { status: llm.status, error: llm.error, pending: llm.pending != null }
-    if (llm.status && llm.status !== prev.status) flash(`AI: ${llm.status}`)
-    else if (llm.error && llm.error !== prev.error) flash(`AI: ${llm.error}`)
-    else if (llm.pending != null && !prev.pending) flash('AI circuit ready — open AI to apply')
-  }, [llm])
 
   // two-step destructive reset on long-press
   const resetArmRef = useRef(0)

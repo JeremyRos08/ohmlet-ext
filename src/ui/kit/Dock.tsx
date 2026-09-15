@@ -14,8 +14,7 @@
  *   <Dock activeKey={tab} onSelect={setTab} desktop={isDesktop} items={[
  *     { key: 'parts', icon: <ChipIcon size={26} />, label: 'Parts' },
  *     { key: 'wire', icon: <WireIcon size={26} />, label: 'Wire' },
- *     { key: 'ai', icon: <SparklesIcon size={26} />, label: 'AI' },
- *   ]} />
+ *      *   ]} />
  */
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
