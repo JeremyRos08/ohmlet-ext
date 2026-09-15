@@ -53,6 +53,7 @@ const MAX_CONSOLE = 40_000
 const ROM_URL = '/esp32sim/esp32s3_rev0_rom.elf'
 const WASM_URL = '/esp32sim/esp32sim.wasm'
 const WORKER_URL = '/esp32sim/worker.js'
+const BOARD_MODEL = 'ohmlet-ra8875'
 
 const snapshots = new Map<string, Esp32RuntimeSnapshot>()
 const listeners = new Map<string, Set<() => void>>()
@@ -452,7 +453,7 @@ export async function bootEsp32Firmware(componentId: string): Promise<void> {
     await waiter
 
     waiter = waitForMessage(worker, (m) => typeof m.created === 'boolean')
-    worker.postMessage({ op: 'create', board: 'none', flash_mb: 16, psram_mb: 8, jit: true })
+    worker.postMessage({ op: 'create', board: BOARD_MODEL, flash_mb: 16, psram_mb: 8, jit: true })
     const created = await waiter
     if (created.created !== true) throw new Error('ESP32-S3 emulator could not create the virtual chip')
 
@@ -477,7 +478,7 @@ export async function bootEsp32Firmware(componentId: string): Promise<void> {
     const started = await waiter
     if (started.started !== true) throw new Error('ESP32-S3 firmware did not boot')
 
-    publish(componentId, { status: 'running', message: 'Firmware running' })
+    publish(componentId, { status: 'running', message: 'Firmware running · GPIO + RA8875 active' })
   } catch (error) {
     worker?.terminate()
     workers.delete(componentId)
