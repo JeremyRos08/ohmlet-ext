@@ -69,6 +69,18 @@ describe('EastRising ER-TFTM050A2-3-3661 extension', () => {
     for (const p of built.pinWorld) expect(p.y).toBeCloseTo(0.7, 6)
   })
 
+  it('prints a dedicated label plaque for every connector pin', () => {
+    const entry = getEntry('tft_5in')!
+    const pins = entry.pins.map((_, i) => new THREE.Vector3(-12 + i * 2.5, 0, 2))
+    const built = buildComponentObject({ id: 'LCD1', type: entry.type }, entry, pins)
+    const labels = built.object.getObjectByName('tft5-pin-labels')
+    expect(labels).toBeDefined()
+    expect(labels?.userData.pinNames).toEqual(entry.pins)
+    for (const name of entry.pins) {
+      expect(built.object.getObjectByName(`tft5-pinlabel-bg-${name}`)).toBeDefined()
+    }
+  })
+
   it('validates an ESP32-S3 and RA8875 display in the same layout', () => {
     const result = validateLayout({
       version: 1,
