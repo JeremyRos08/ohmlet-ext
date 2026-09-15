@@ -1,6 +1,7 @@
 import { CATALOG, type CatalogEntry } from './catalog'
 import '../sim/multimeter-chip'
 import '../sim/esp32-chip'
+import '../sim/arduino-chip'
 
 /** Ohmlet-ext catalog additions, loaded once at app boot. */
 const MULTIMETER: CatalogEntry = {
@@ -18,10 +19,7 @@ const MULTIMETER: CatalogEntry = {
   doc: 'Digital multimeter with selectable DC volts, AC true-RMS estimate, resistance, continuity, mA and A modes. Connect VΩ (red) and COM (black) across a voltage/resistance measurement; for current modes insert the meter in series.',
 }
 
-/**
- * Espressif ESP32-S3-DevKitC-1 v1.0 header order. Headers sit in b/i so the
- * electrically-equivalent outer a/j holes stay exposed for jumper wires.
- */
+/** Espressif ESP32-S3-DevKitC-1 v1.0 header order. */
 const ESP32_S3_DEVKIT: CatalogEntry = {
   type: 'esp32_s3_devkit',
   label: 'ESP32-S3 DevKitC-1',
@@ -49,7 +47,6 @@ const ESP32_S3_DEVKIT: CatalogEntry = {
     { dCol: 20, row: 'i' }, { dCol: 21, row: 'i' },
   ],
   bodyFootprint: { dCols: [0, 21], rows: ['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'] },
-  // The two 3V3 headers and every GND header are physically common on the DevKit.
   internalBridges: [
     ['3V3_1', '3V3_2'],
     ['GND_J1', 'GND_J3_1'],
@@ -61,12 +58,6 @@ const ESP32_S3_DEVKIT: CatalogEntry = {
   doc: 'ESP32-S3-DevKitC-1 with official 2×22 pinout, browser firmware execution and mixed-signal GPIO. Firmware output pins drive the solved circuit at 3.3 V through a finite output impedance; breadboard voltages are fed back to firmware GPIO inputs. Headers occupy rows b/i and leave rows a/j open for jumper access.',
 }
 
-/**
- * Breadboard-friendly target for the 5-inch display: EastRising
- * ER-TFTM050A2-3-3661, 800×480, RA8875 controller and capacitive touch.
- * We expose the functional serial/SPI + touch signals used with an ESP32-S3,
- * not the module's optional wide parallel bus.
- */
 const TFT_5IN: CatalogEntry = {
   type: 'tft_5in',
   label: 'EastRising 5" RA8875 Touch 800×480',
@@ -78,9 +69,65 @@ const TFT_5IN: CatalogEntry = {
   ],
   sim: { kind: 'probe' },
   visual: { shape: 'tft5-ra8875' },
-  doc: 'EastRising ER-TFTM050A2-3-3661 5-inch 800×480 TFT module with RA8875 display controller and capacitive touch controller. Use 5V/GND plus 4-wire SPI (SCK, MISO, MOSI, CS), RST/WAIT/INT, LITE for backlight PWM, and TP_SDA/TP_SCL/TP_INT/TP_RST for touch. The optional framebuffer source names the ESP32 component whose emulated display frames should be mirrored when available.',
+  doc: 'EastRising ER-TFTM050A2-3-3661 5-inch 800×480 TFT module with RA8875 controller and capacitive touch controller. The ESP32-S3 runtime emulates the RA8875 framebuffer; set Framebuffer source to the ESP32 component id. The visible header remains wireable for circuit documentation and power/control wiring.',
+}
+
+const ARDUINO_UNO_R3: CatalogEntry = {
+  type: 'arduino_uno_r3',
+  label: 'Arduino Uno R3',
+  category: 'ic',
+  placement: 'offboard',
+  pins: [
+    'IOREF', 'RESET', '3V3', '5V', 'GND1', 'GND2', 'VIN',
+    'A0', 'A1', 'A2', 'A3', 'A4_SDA', 'A5_SCL',
+    'D0_RX', 'D1_TX', 'D2', 'D3_PWM', 'D4', 'D5_PWM', 'D6_PWM', 'D7',
+    'D8', 'D9_PWM', 'D10_PWM_SS', 'D11_PWM_MOSI', 'D12_MISO', 'D13_SCK',
+    'AREF', 'SDA', 'SCL',
+  ],
+  params: [
+    { key: 'usbPower', label: 'USB power', kind: 'boolean', default: true, runtime: true },
+  ],
+  internalBridges: [
+    ['GND1', 'GND2'],
+    ['IOREF', '5V'],
+    ['A4_SDA', 'SDA'],
+    ['A5_SCL', 'SCL'],
+  ],
+  sim: { kind: 'chip', model: 'arduino_atmega328p' },
+  visual: { shape: 'arduino-uno' },
+  doc: 'Arduino Uno R3 with an emulated ATmega328P at 16 MHz. Flash an Arduino .hex file from Properties. Digital GPIO, PWM pin logic, analog inputs, timers and Serial are executed by AVR8js and bridged into the Ohmlet circuit solver.',
+}
+
+const NANO_OFFSETS: NonNullable<CatalogEntry['footprintOffsets']> = [
+  ...Array.from({ length: 15 }, (_, dCol) => ({ dCol, row: 'b' as const })),
+  ...Array.from({ length: 15 }, (_, dCol) => ({ dCol, row: 'i' as const })),
+]
+
+const ARDUINO_NANO: CatalogEntry = {
+  type: 'arduino_nano',
+  label: 'Arduino Nano (ATmega328P)',
+  category: 'ic',
+  placement: 'footprint',
+  pins: [
+    'D1_TX', 'D0_RX', 'RESET', 'GND1', 'D2', 'D3_PWM', 'D4', 'D5_PWM', 'D6_PWM', 'D7', 'D8', 'D9_PWM', 'D10_PWM_SS', 'D11_PWM_MOSI', 'D12_MISO',
+    'D13_SCK', '3V3', 'AREF', 'A0', 'A1', 'A2', 'A3', 'A4_SDA', 'A5_SCL', 'A6', 'A7', '5V', 'RESET2', 'GND2', 'VIN',
+  ],
+  footprintOffsets: NANO_OFFSETS,
+  bodyFootprint: { dCols: [0, 14], rows: ['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'] },
+  params: [
+    { key: 'usbPower', label: 'USB power', kind: 'boolean', default: true, runtime: true },
+  ],
+  internalBridges: [
+    ['GND1', 'GND2'],
+    ['RESET', 'RESET2'],
+  ],
+  sim: { kind: 'chip', model: 'arduino_atmega328p' },
+  visual: { shape: 'arduino-nano' },
+  doc: 'Breadboard Arduino Nano with emulated ATmega328P at 16 MHz. Flash a compiled Arduino .hex file from Properties. The two 15-pin headers sit in rows b/i, leaving rows a/j accessible for jumper wires. A6/A7 are analog-only, like the real Nano.',
 }
 
 if (!CATALOG.multimeter) CATALOG.multimeter = MULTIMETER
 if (!CATALOG.esp32_s3_devkit) CATALOG.esp32_s3_devkit = ESP32_S3_DEVKIT
 if (!CATALOG.tft_5in) CATALOG.tft_5in = TFT_5IN
+if (!CATALOG.arduino_uno_r3) CATALOG.arduino_uno_r3 = ARDUINO_UNO_R3
+if (!CATALOG.arduino_nano) CATALOG.arduino_nano = ARDUINO_NANO
