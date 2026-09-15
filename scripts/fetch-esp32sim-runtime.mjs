@@ -1,16 +1,24 @@
 import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
-const BASE = process.env.ESP32SIM_RUNTIME_URL ?? 'https://joakimeriksson.github.io/esp32sim'
+// The runtime branch is produced by .github/workflows/esp32-runtime.yml from a
+// pinned esp32sim revision plus Ohmlet's GPIO/display bridge patches. Using the
+// upstream demo site here silently dropped those patches, so firmware could run
+// while its GPIO never reached the solved breadboard circuit.
+const BASE =
+  process.env.ESP32SIM_RUNTIME_URL ??
+  'https://raw.githubusercontent.com/JeremyRos08/ohmlet-ext/runtime'
 const OUT = join(process.cwd(), 'public', 'esp32sim')
 const REFRESH = process.env.ESP32SIM_REFRESH === '1'
 
+// Runtime-branch assets are intentionally flat. ESP32SIM_RUNTIME_URL can point
+// at a mirror with the same layout for offline/private deployments.
 const assets = [
-  ['wasm/esp32sim.wasm', 'esp32sim.wasm', 500_000],
-  ['wasm/worker.js', 'worker.js', 1_000],
-  ['wasm/jit.mjs', 'jit.mjs', 500],
-  ['wasm/pacing.mjs', 'pacing.mjs', 500],
-  ['wasm/fw/esp32s3_rev0_rom.elf', 'esp32s3_rev0_rom.elf', 100_000],
+  ['esp32sim.wasm', 'esp32sim.wasm', 500_000],
+  ['worker.js', 'worker.js', 1_000],
+  ['jit.mjs', 'jit.mjs', 500],
+  ['pacing.mjs', 'pacing.mjs', 500],
+  ['esp32s3_rev0_rom.elf', 'esp32s3_rev0_rom.elf', 100_000],
 ]
 
 async function usable(path, minBytes) {
