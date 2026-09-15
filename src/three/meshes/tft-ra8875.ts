@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { ComponentInstance } from '../../model/types'
-import type { CatalogEntry } from '../../model/catalog'
+import { paramOf, type CatalogEntry } from '../../model/catalog'
+import { getEsp32DisplayFrame } from '../../firmware/esp32-runtime'
 import {
   type BuildResult,
   cachedGeometry,
@@ -10,14 +11,13 @@ import {
   topLabel,
 } from './shared'
 
-function screenTexture(): THREE.Texture | null {
-  if (typeof document === 'undefined') return null
-  const canvas = document.createElement('canvas')
-  canvas.width = 800
-  canvas.height = 480
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
+interface ScreenSurface {
+  canvas: HTMLCanvasElement
+  ctx: CanvasRenderingContext2D
+  texture: THREE.CanvasTexture
+}
 
+function drawIdleScreen(ctx: CanvasRenderingContext2D): void {
   const grad = ctx.createLinearGradient(0, 0, 800, 480)
   grad.addColorStop(0, '#102a3d')
   grad.addColorStop(0.55, '#184e68')
@@ -48,11 +48,48 @@ function screenTexture(): THREE.Texture | null {
   ctx.fillStyle = '#6f8c99'
   ctx.font = '600 23px Arial, sans-serif'
   ctx.fillText('NO SIGNAL', 400, 365)
+}
 
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.colorSpace = THREE.SRGBColorSpace
-  tex.needsUpdate = true
-  return tex
+function makeScreenSurface(): ScreenSurface | null {
+  if (typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  canvas.width = 800
+  canvas.height = 480
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  drawIdleScreen(ctx)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.needsUpdate = true
+  return { canvas, ctx, texture }
+}
+
+function drawRgb565(surface: ScreenSurface, width: number, height: number, bytes: Uint8Array): void {
+  if (width <= 0 || height <= 0 || bytes.length < width * height * 2) return
+  const image = surface.ctx.createImageData(width, height)
+  const out = image.data
+  for (let i = 0, p = 0; i < width * height; i++, p += 4) {
+    const v = bytes[i * 2] | (bytes[i * 2 + 1] << 8)
+    const r5 = (v >> 11) & 0x1f
+    const g6 = (v >> 5) & 0x3f
+    const b5 = v & 0x1f
+    out[p] = (r5 << 3) | (r5 >> 2)
+    out[p + 1] = (g6 << 2) | (g6 >> 4)
+    out[p + 2] = (b5 << 3) | (b5 >> 2)
+    out[p + 3] = 255
+  }
+  if (width === surface.canvas.width && height === surface.canvas.height) {
+    surface.ctx.putImageData(image, 0, 0)
+  } else {
+    const tmp = document.createElement('canvas')
+    tmp.width = width
+    tmp.height = height
+    tmp.getContext('2d')?.putImageData(image, 0, 0)
+    surface.ctx.imageSmoothingEnabled = false
+    surface.ctx.clearRect(0, 0, surface.canvas.width, surface.canvas.height)
+    surface.ctx.drawImage(tmp, 0, 0, surface.canvas.width, surface.canvas.height)
+  }
+  surface.texture.needsUpdate = true
 }
 
 function label(text: string, width: number, height: number, fg = '#eef6ef'): THREE.Object3D | null {
@@ -78,14 +115,9 @@ function pinLabel(name: string): THREE.Object3D | null {
   })
 }
 
-/**
- * EastRising ER-TFTM050A2-3-3661: 5-inch 800×480 TFT with RA8875 controller
- * board and capacitive touch controller. The simulator exposes the useful
- * serial/SPI + touch breakout signals rather than the module's full parallel
- * bus, keeping it practical to wire to an ESP32-S3 on a breadboard.
- */
+/** EastRising ER-TFTM050A2-3-3661, driven by the virtual RA8875 board model. */
 export function buildRa8875Tft5(
-  _comp: ComponentInstance,
+  comp: ComponentInstance,
   entry: CatalogEntry,
   pins: THREE.Vector3[],
 ): BuildResult {
@@ -98,9 +130,6 @@ export function buildRa8875Tft5(
   const cx = (pinMinX + pinMaxX) / 2
   const pinZ = pins.length ? pins.reduce((sum, p) => sum + p.z, 0) / pins.length : first.z
 
-  // 132.7 × 75.95 mm real module proportions, scaled to the breadboard scene.
-  // The controller/header apron lives OUTSIDE the display body so the posts
-  // remain visible from normal camera angles and can be clicked/wired easily.
   const bodyW = Math.max(36, pinMaxX - pinMinX + 3.0)
   const bodyD = bodyW / (132.7 / 75.95)
   const bodyFrontZ = pinZ - 1.35
@@ -123,26 +152,24 @@ export function buildRa8875Tft5(
   bezel.position.set(cx, 1.24, cz)
   group.add(bezel)
 
-  const tex = screenTexture()
+  const surface = makeScreenSurface()
   const glassParams: THREE.MeshPhysicalMaterialParameters = {
-    color: tex ? 0xffffff : 0x102a3a,
-    emissive: tex ? 0x24495b : 0x0b1c27,
-    emissiveIntensity: tex ? 0.74 : 0.35,
+    color: surface ? 0xffffff : 0x102a3a,
+    emissive: surface ? 0x24495b : 0x0b1c27,
+    emissiveIntensity: surface ? 0.74 : 0.35,
     roughness: 0.19,
     metalness: 0,
     clearcoat: 0.82,
     clearcoatRoughness: 0.14,
   }
-  if (tex) glassParams.map = tex
-  const glass = new THREE.Mesh(
-    new THREE.PlaneGeometry(bodyW - 2.0, bodyD - 2.0),
-    new THREE.MeshPhysicalMaterial(glassParams),
-  )
+  if (surface) glassParams.map = surface.texture
+  const glassMat = new THREE.MeshPhysicalMaterial(glassParams)
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(bodyW - 2.0, bodyD - 2.0), glassMat)
+  glass.name = 'tft5-glass'
   glass.rotation.x = -Math.PI / 2
   glass.position.set(cx, 1.36, cz)
   group.add(glass)
 
-  // Green RA8875 controller-board apron between the panel and the connector.
   const apron = new THREE.Mesh(
     new THREE.BoxGeometry(bodyW - 0.8, 0.22, 2.15),
     cachedMaterial('ra8875-tft5-pcb', () =>
@@ -166,14 +193,8 @@ export function buildRa8875Tft5(
     group.add(ra)
   }
 
-  // One clearly visible 1×N breakout header. Generic off-board terminal
-  // positions are 2.5 plan-units apart; 14 functional pins fit inside the
-  // real module's width at this scale.
   const headerW = Math.max(2.0, pinMaxX - pinMinX + 0.95)
-  const header = new THREE.Mesh(
-    new THREE.BoxGeometry(headerW, 0.34, 0.78),
-    plastic(0x111315, 0.50),
-  )
+  const header = new THREE.Mesh(new THREE.BoxGeometry(headerW, 0.34, 0.78), plastic(0x111315, 0.50))
   header.name = 'tft5-header'
   header.position.set(cx, 0.39, pinZ)
   group.add(header)
@@ -192,16 +213,11 @@ export function buildRa8875Tft5(
     const socket = new THREE.Mesh(socketGeo, headerMat)
     socket.position.set(p.x, 0.46, p.z)
     group.add(socket)
-
     const post = new THREE.Mesh(postGeo, gold)
     post.name = `tft5-pin-${pinName}`
     post.position.set(p.x, 0.76, p.z)
     group.add(post)
 
-    // Pin names are printed immediately behind their matching post. Alternate
-    // between two rows so long touch names remain readable without colliding.
-    // A dark plaque is kept even in headless tests; the textured text is added
-    // in the browser where CanvasTexture is available.
     const labelZ = pinZ - (i % 2 === 0 ? 0.70 : 1.19)
     const plaque = new THREE.Mesh(
       cachedGeometry('ra8875-pin-plaque', () => new THREE.BoxGeometry(2.22, 0.035, 0.49)),
@@ -212,7 +228,6 @@ export function buildRa8875Tft5(
     plaque.name = `tft5-pinlabel-bg-${pinName}`
     plaque.position.set(p.x, 0.655, labelZ)
     labelGroup.add(plaque)
-
     const text = pinLabel(pinName)
     if (text) {
       text.name = `tft5-pinlabel-${pinName}`
@@ -233,7 +248,29 @@ export function buildRa8875Tft5(
     group.add(bus)
   }
 
-  // Scene routing attaches off-board wires at TERMINAL_TOP_Y = 0.7; keep the
-  // rendered gold posts centered around that exact height.
-  return { object: group, pinWorld: pins.map((p) => new THREE.Vector3(p.x, 0.7, p.z)) }
+  let lastSource = ''
+  let lastSeq = -1
+  const update = surface
+    ? (nextComp: ComponentInstance) => {
+        const source = String(paramOf(nextComp.params, entry, 'sourceEsp') ?? 'U1').trim()
+        if (source !== lastSource) {
+          lastSource = source
+          lastSeq = -1
+          drawIdleScreen(surface.ctx)
+          surface.texture.needsUpdate = true
+        }
+        const frame = source ? getEsp32DisplayFrame(source) : undefined
+        if (!frame || frame.seq === lastSeq) return
+        lastSeq = frame.seq
+        drawRgb565(surface, frame.width, frame.height, frame.rgb565)
+      }
+    : undefined
+
+  // Prime from an already-running source when a screen is added/rebuilt.
+  update?.(comp, entry, null)
+  return {
+    object: group,
+    pinWorld: pins.map((p) => new THREE.Vector3(p.x, 0.7, p.z)),
+    update,
+  }
 }
