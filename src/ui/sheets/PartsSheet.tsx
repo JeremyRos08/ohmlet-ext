@@ -16,9 +16,10 @@
  *     desktop={isDesktop} />
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Sheet, pressProps, tick, CloseIcon } from '../kit'
-import { useStore } from '../../state/store'
+import { Sheet, pressProps, tick, CloseIcon, showToast } from '../kit'
+import { placementValid, useStore } from '../../state/store'
 import { CATALOG, type CatalogEntry, type ComponentCategory } from '../../model/catalog'
+import { BOARD_SIZES, boardConfigOf, boardRowsOf } from '../../model/types'
 import './PartsSheet.css'
 
 // ---------------------------------------------------------------------------
@@ -166,7 +167,6 @@ function PartGlyph({ entry }: { entry: CatalogEntry }) {
   }
   switch (entry.category) {
     case 'semiconductor':
-      // diode triangle + bar; BJTs/MOSFETs get the TO-92 half-moon
       if (entry.type === 'diode') {
         return (
           <G>
@@ -284,9 +284,7 @@ function SearchField({
 
 export interface PartsSheetProps {
   open: boolean
-  /** Called when the user dismisses the sheet (swipe down / scrim / Esc). */
   onDismiss: () => void
-  /** Render as the desktop floating panel (anchored left) instead. */
   desktop?: boolean
 }
 
@@ -300,7 +298,6 @@ export function PartsSheet({ open, onDismiss, desktop = false }: PartsSheetProps
   const [query, setQuery] = useState('')
   const [cat, setCat] = useState<CatFilter>('all')
 
-  // fresh presentation each time the sheet opens
   useEffect(() => {
     if (open) setSnap(HALF)
   }, [open])
@@ -320,13 +317,48 @@ export function PartsSheet({ open, onDismiss, desktop = false }: PartsSheetProps
 
   const onCard = (entry: CatalogEntry) => {
     tick()
+
+    // The DevKit is a large fixed footprint. Requiring the user to discover
+    // that pin 1 must be clicked on row b made the part look impossible to
+    // add. Place it automatically in the first free 22-column bay instead;
+    // it can still be moved afterwards like every other package.
+    if (entry.type === 'esp32_s3_devkit') {
+      const st = useStore.getState()
+      const config = boardConfigOf(st.layout)
+      const totalCols = BOARD_SIZES[config.size].cols * config.count
+      const rows = boardRowsOf(config)
+      let placedId: string | null = null
+
+      outer: for (let boardRow = 0; boardRow < rows; boardRow++) {
+        for (let col = 1; col <= totalCols - 21; col++) {
+          const at = `${boardRow === 0 ? '' : `${boardRow}:`}b${col}`
+          if (!placementValid(st.layout, entry.type, at, [], 0)) continue
+          const before = st.layout.components.length
+          st.addComponent(entry.type, { at })
+          const comps = useStore.getState().layout.components
+          if (comps.length > before) {
+            placedId = comps[comps.length - 1].id
+            break outer
+          }
+        }
+      }
+
+      if (placedId) {
+        const next = useStore.getState()
+        next.setMode({ kind: 'select' })
+        next.select(placedId)
+      } else {
+        showToast('ESP32-S3 needs 22 free columns on one breadboard row', { duration: 3200 })
+      }
+      if (!desktop) setSnap(PEEK)
+      return
+    }
+
     if (armedType === entry.type) {
-      // tapping the armed card cancels placement
       setMode({ kind: 'select' })
       return
     }
     setMode({ kind: 'place', type: entry.type, pickedHoles: [] })
-    // drop to peek so the canvas is free to place on — NOT a full dismiss
     if (!desktop) setSnap(PEEK)
   }
 
@@ -348,7 +380,6 @@ export function PartsSheet({ open, onDismiss, desktop = false }: PartsSheetProps
         <SearchField
           value={query}
           onChange={setQuery}
-          // searching needs the keyboard + room for results: spring to full
           onFocus={() => {
             if (!desktop) setSnap(FULL)
           }}
@@ -376,11 +407,7 @@ export function PartsSheet({ open, onDismiss, desktop = false }: PartsSheetProps
                 <button
                   key={entry.type}
                   type="button"
-                  className={
-                    // nested glass card (rim + slab via lg-card) with the gel
-                    // press: the specular blooms from the touch point
-                    `psh-card lg-card lg-pressable lg-specular lg-gel cat-${entry.category}`
-                  }
+                  className={`psh-card lg-card lg-pressable lg-specular lg-gel cat-${entry.category}`}
                   aria-pressed={armed}
                   aria-label={`${entry.label}, ${placementMeta(entry)}${armed ? ', placing' : ''}`}
                   {...pressProps}

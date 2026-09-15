@@ -52,8 +52,8 @@ export function buildEsp32S3DevKit(
   const minZ = Math.min(...zs)
   const maxZ = Math.max(...zs)
 
-  // Headers now occupy breadboard rows b/i. Keep the board narrow enough that
-  // rows a/j remain visibly exposed and easy to click for jumpers.
+  // Headers occupy breadboard rows b/i. The narrower body keeps rows a/j
+  // exposed so jumpers can be plugged into the same electrical strips.
   const boardW = Math.max(22.2, maxX - minX + 1.2)
   const boardD = Math.max(7.4, maxZ - minZ + 0.9)
   const pcbY = 0.74
@@ -67,8 +67,6 @@ export function buildEsp32S3DevKit(
   pcb.position.set(c.x, pcbY, c.z)
   group.add(pcb)
 
-  // Long black header rails make the module read like the real DevKitC while
-  // the individual gold pins remain visible below and above the plastic.
   const headerLen = maxX - minX + 0.8
   const headerGeo = cachedGeometry(`esp32s3-header-rail-${headerLen.toFixed(1)}`, () => new THREE.BoxGeometry(headerLen, 0.42, 0.64))
   const headerMat = plastic(0x101214, 0.52)
@@ -90,7 +88,6 @@ export function buildEsp32S3DevKit(
     group.add(pin)
   }
 
-  // WROOM module: dark carrier board, metal can and antenna keep-out.
   const moduleW = Math.min(8.2, boardW * 0.37)
   const moduleD = Math.min(boardD - 1.4, 6.2)
   const moduleX = minX + moduleW / 2 + 1.05
@@ -112,7 +109,6 @@ export function buildEsp32S3DevKit(
   shield.position.set(moduleX + moduleW * 0.13, pcbY + 0.47, c.z)
   group.add(shield)
 
-  // Printed PCB antenna at the left end, approximated by a copper meander.
   const antennaMat = metal(0xc89b42, 0.35)
   const traceGeoH = cachedGeometry('esp32s3-ant-h', () => new THREE.BoxGeometry(0.95, 0.025, 0.10))
   const traceGeoV = cachedGeometry('esp32s3-ant-v', () => new THREE.BoxGeometry(0.10, 0.025, 0.64))
@@ -128,8 +124,6 @@ export function buildEsp32S3DevKit(
     }
   }
 
-  // Two USB-C receptacles at the connector end. A black inset gives the shell
-  // actual depth instead of looking like a silver cube.
   const usbShellGeo = cachedGeometry('esp32s3-usbc-shell', () => new THREE.BoxGeometry(1.48, 0.62, 1.08))
   const usbMouthGeo = cachedGeometry('esp32s3-usbc-mouth', () => new THREE.BoxGeometry(0.08, 0.34, 0.70))
   const usbShellMat = metal(0xc3c7ca, 0.24)
@@ -143,7 +137,6 @@ export function buildEsp32S3DevKit(
     group.add(mouth)
   }
 
-  // BOOT / RESET tactile switches with a metallic base and dark actuator.
   const switchBaseGeo = cachedGeometry('esp32s3-switch-base', () => new THREE.BoxGeometry(0.88, 0.16, 0.72))
   const switchCapGeo = cachedGeometry('esp32s3-switch-cap', () => new THREE.BoxGeometry(0.42, 0.18, 0.42))
   for (const dz of [-1.55, 1.55]) {
@@ -155,7 +148,6 @@ export function buildEsp32S3DevKit(
     group.add(cap)
   }
 
-  // Tiny power/RGB LEDs near the USB end.
   const ledGeo = cachedGeometry('esp32s3-smd-led', () => new THREE.BoxGeometry(0.28, 0.08, 0.18))
   const pwrLed = new THREE.Mesh(ledGeo, cachedMaterial('esp32s3-led-red', () => new THREE.MeshStandardMaterial({ color: 0xff3b30, emissive: 0x8a0803, emissiveIntensity: 1.4 })))
   pwrLed.position.set(maxX - 3.1, pcbY + 0.18, c.z - 0.55)
@@ -180,8 +172,6 @@ export function buildEsp32S3DevKit(
     group.add(rstLabel)
   }
 
-  // Attach points at header-top height make future direct-pin jumpers land on
-  // the physical pin instead of disappearing through the PCB.
   const pinWorld = pins.map((p) => new THREE.Vector3(p.x, pcbY + 0.50, p.z))
   return { object: group, pinWorld }
 }
@@ -240,9 +230,12 @@ export function buildTft5Inch(
   const bodyW = 30
   const bodyD = 18
   const bodyH = 0.9
-  const rightEdge = first.x - 0.45
-  const cx = rightEdge - bodyW / 2
-  const cz = first.z - 5.0
+  const pinCenterX = pins.length > 0 ? pins.reduce((sum, p) => sum + p.x, 0) / pins.length : first.x
+  // The generic off-board terminal row is 27.5 units wide for 12 pins. Center
+  // the TFT on that row instead of placing the whole screen to its left, and
+  // put the row one unit inside the lower bezel like a real breakout header.
+  const cx = pinCenterX
+  const cz = first.z - bodyD / 2 + 1.0
 
   const back = new THREE.Mesh(
     new THREE.BoxGeometry(bodyW, bodyH, bodyD),
@@ -250,6 +243,7 @@ export function buildTft5Inch(
       new THREE.MeshPhysicalMaterial({ color: 0x15181d, roughness: 0.5, metalness: 0.16 }),
     ),
   )
+  back.name = 'tft5-body'
   back.position.set(cx, 0.72, cz)
   group.add(back)
 
@@ -274,18 +268,30 @@ export function buildTft5Inch(
   glass.position.set(cx, 1.36, cz)
   group.add(glass)
 
-  const padGeo = cachedGeometry('tft5-pad', () => new THREE.CylinderGeometry(0.22, 0.22, 0.1, 14))
+  const pinXs = pins.map((p) => p.x)
+  const headerW = pinXs.length > 1 ? Math.max(...pinXs) - Math.min(...pinXs) + 0.9 : 1.1
+  const header = new THREE.Mesh(
+    new THREE.BoxGeometry(headerW, 0.30, 0.72),
+    plastic(0x141619, 0.55),
+  )
+  header.name = 'tft5-header'
+  header.position.set(cx, 0.36, first.z)
+  group.add(header)
+
+  const padGeo = cachedGeometry('tft5-pad', () => new THREE.CylinderGeometry(0.22, 0.22, 0.48, 14))
   for (const p of pins) {
     const pad = new THREE.Mesh(padGeo, metal(0xd6b75c, 0.25))
-    pad.position.set(p.x, 0.18, p.z)
+    pad.position.set(p.x, 0.58, p.z)
     group.add(pad)
   }
 
   const title = makeBoardLabel('5”  TFT  800×480', 8.4, 1.0)
   if (title) {
-    title.position.set(cx, 1.48, cz + bodyD / 2 - 1.05)
+    title.position.set(cx, 1.48, cz - bodyD / 2 + 1.05)
     group.add(title)
   }
 
-  return { object: group, pinWorld: pins.map((p) => p.clone()) }
+  // Wires attach to the same physical header posts that are now rendered on
+  // the screen edge (scene uses these x/z positions with TERMINAL_TOP_Y).
+  return { object: group, pinWorld: pins.map((p) => new THREE.Vector3(p.x, 0.70, p.z)) }
 }
