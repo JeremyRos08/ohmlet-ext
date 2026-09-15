@@ -61,18 +61,24 @@ const ESP32_S3_DEVKIT: CatalogEntry = {
   doc: 'ESP32-S3-DevKitC-1 with official 2×22 pinout, browser firmware execution and mixed-signal GPIO. Firmware output pins drive the solved circuit at 3.3 V through a finite output impedance; breadboard voltages are fed back to firmware GPIO inputs. Headers occupy rows b/i and leave rows a/j open for jumper access.',
 }
 
+/**
+ * Breadboard-friendly target for the 5-inch display: EastRising
+ * ER-TFTM050A2-3-3661, 800×480, RA8875 controller and capacitive touch.
+ * We expose the functional serial/SPI + touch signals used with an ESP32-S3,
+ * not the module's optional wide parallel bus.
+ */
 const TFT_5IN: CatalogEntry = {
   type: 'tft_5in',
-  label: '5-inch TFT 800×480',
+  label: 'EastRising 5" RA8875 Touch 800×480',
   category: 'display',
   placement: 'offboard',
-  pins: ['5V', 'GND', 'SCK', 'MOSI', 'MISO', 'CS', 'DC', 'RST', 'BL', 'SDA', 'SCL', 'INT'],
+  pins: ['5V', 'GND', 'SCK', 'MISO', 'MOSI', 'CS', 'RST', 'WAIT', 'INT', 'LITE', 'TP_SDA', 'TP_SCL', 'TP_INT', 'TP_RST'],
   params: [
-    { key: 'sourceEsp', label: 'Framebuffer source', kind: 'text', default: 'ESP1' },
+    { key: 'sourceEsp', label: 'Framebuffer source', kind: 'text', default: 'U1' },
   ],
   sim: { kind: 'probe' },
-  visual: { shape: 'tft5' },
-  doc: 'Generic 5-inch 800×480 TFT module with 5V/GND, SPI display pins and I²C touch pins. The optional framebuffer source names an ESP32 component whose emulator display frames should be mirrored when available.',
+  visual: { shape: 'tft5-ra8875' },
+  doc: 'EastRising ER-TFTM050A2-3-3661 5-inch 800×480 TFT module with RA8875 display controller and capacitive touch controller. Use 5V/GND plus 4-wire SPI (SCK, MISO, MOSI, CS), RST/WAIT/INT, LITE for backlight PWM, and TP_SDA/TP_SCL/TP_INT/TP_RST for touch. The optional framebuffer source names the ESP32 component whose emulated display frames should be mirrored when available.',
 }
 
 if (!CATALOG.multimeter) CATALOG.multimeter = MULTIMETER
