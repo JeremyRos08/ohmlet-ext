@@ -83,7 +83,7 @@ export function ArduinoFirmwareGroup({ comp }: { comp: ComponentInstance }) {
   }
 
   const sendSerial = () => {
-    if (!serialText) return
+    if (!serialText || snapshot.status !== 'running') return
     sendAvrSerial(comp.id, serialText)
     setSerialText('')
   }
@@ -127,10 +127,10 @@ export function ArduinoFirmwareGroup({ comp }: { comp: ComponentInstance }) {
         <button type="button" className="avrfw-btn avrfw-primary" disabled={busy} onClick={() => fileRef.current?.click()}>
           {firmware ? 'Flash another .hex' : 'Flash .hex'}
         </button>
-        {firmware && !running && (
+        {firmware && !running && !loading && (
           <button type="button" className="avrfw-btn" disabled={busy} onClick={() => void boot()}>Boot</button>
         )}
-        {running && (
+        {(running || loading) && (
           <button type="button" className="avrfw-btn" onClick={() => stopAvrFirmware(comp.id)}>Stop</button>
         )}
         {firmware && (

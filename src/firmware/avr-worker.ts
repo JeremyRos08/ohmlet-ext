@@ -1,10 +1,9 @@
-export {}
+import * as avr from 'avr8js'
+import { AvrSerialBridge } from './avr-serial'
 
-// Keep AVR8js out of the main bundle and out of npm's lockfile: the worker
-// loads the pinned browser ESM build only when an Arduino firmware is booted.
-const AVR8_URL = 'https://esm.sh/avr8js@0.21.1?bundle'
+// Vite bundles the pinned emulator into this worker, so boot needs no CDN.
 const CLOCK_HZ = 16_000_000
-const FLASH_WORDS = 0x8000
+const FLASH_WORDS = 0x4000 // ATmega328P: 32 kB, stored as 16-bit words
 const MAX_SLICE_CYCLES = 250_000
 const STATE_INTERVAL_MS = 33
 
@@ -26,18 +25,13 @@ let running = false
 let generation = 0
 let ports: Partial<Record<PortName, { setPin(bit: number, level: boolean): void }>> = {}
 let adc: { channelValues: number[] } | null = null
-let usart: { writeByte(value: number): boolean } | null = null
-
-function clampByte(v: number): number {
-  return Math.max(0, Math.min(255, v | 0))
-}
+let serialBridge: AvrSerialBridge | null = null
 
 async function start(programBytes: ArrayBuffer): Promise<void> {
   const myGeneration = ++generation
   running = false
   scope.postMessage({ t: 'loading' })
 
-  const avr = await import(/* @vite-ignore */ AVR8_URL) as Record<string, any>
   if (myGeneration !== generation) return
 
   const program = new Uint16Array(FLASH_WORDS)
@@ -59,7 +53,8 @@ async function start(programBytes: ArrayBuffer): Promise<void> {
 
   ports = { B: portB, C: portC, D: portD }
   adc = adcImpl
-  usart = serial
+  serialBridge = new AvrSerialBridge(serial, (data) => scope.postMessage({ t: 'serial', data }))
+  const bridge = serialBridge
 
   let outB = 0
   let outC = 0
@@ -67,15 +62,6 @@ async function start(programBytes: ArrayBuffer): Promise<void> {
   portB.addListener((value: number) => { outB = value & 0xff })
   portC.addListener((value: number) => { outC = value & 0xff })
   portD.addListener((value: number) => { outD = value & 0xff })
-
-  let serialBuffer = ''
-  serial.onByteTransmit = (value: number) => {
-    serialBuffer += String.fromCharCode(value)
-    if (serialBuffer.length >= 128 || value === 10) {
-      scope.postMessage({ t: 'serial', data: serialBuffer })
-      serialBuffer = ''
-    }
-  }
 
   const startWall = performance.now()
   let lastState = startWall
@@ -86,6 +72,7 @@ async function start(programBytes: ArrayBuffer): Promise<void> {
 
   const tick = () => {
     if (!running || myGeneration !== generation) return
+    bridge.pump()
     const wall = performance.now()
     let targetCycles = ((wall - startWall) / 1000) * CLOCK_HZ
     if (targetCycles - cpu.cycles > CLOCK_HZ * 0.3) {
@@ -100,6 +87,7 @@ async function start(programBytes: ArrayBuffer): Promise<void> {
     }
 
     if (wall - lastState >= STATE_INTERVAL_MS) {
+      bridge.flush()
       const ddrB = cpu.data[avr.portBConfig.DDR] & 0xff
       const ddrC = cpu.data[avr.portCConfig.DDR] & 0xff
       const ddrD = cpu.data[avr.portDConfig.DDR] & 0xff
@@ -135,6 +123,8 @@ scope.onmessage = (event) => {
     if (msg.op === 'stop') {
       running = false
       generation += 1
+      serialBridge?.flush()
+      serialBridge = null
       scope.postMessage({ t: 'stopped' })
       return
     }
@@ -148,8 +138,8 @@ scope.onmessage = (event) => {
       }
       return
     }
-    if (msg.op === 'serial' && usart) {
-      for (const ch of msg.data) usart.writeByte(clampByte(ch.charCodeAt(0)))
+    if (msg.op === 'serial' && running) {
+      serialBridge?.send(msg.data)
     }
   } catch (error) {
     scope.postMessage({ t: 'error', message: error instanceof Error ? error.message : String(error) })
