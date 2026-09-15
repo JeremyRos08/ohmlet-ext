@@ -43,6 +43,7 @@ import { buildBuzzer, buildInstrumentBox, buildProbe } from './meshes/instrument
 import { buildMultimeter } from './meshes/multimeter'
 import { buildEsp32S3DevKit, buildTft5Inch } from './meshes/embedded'
 import { buildRa8875Tft5 } from './meshes/tft-ra8875'
+import { buildArduinoNano, buildArduinoUno } from './meshes/arduino'
 import { tryModelOverride } from './meshes/gltf-overrides'
 
 export interface BuiltComponent {
@@ -198,6 +199,12 @@ function dispatch(
         break
       case 'esp32s3':
         if (pins.length >= 44) return buildEsp32S3DevKit(comp, entry, pins)
+        break
+      case 'arduino-uno':
+        if (pins.length >= 1) return buildArduinoUno(comp, entry, pins)
+        break
+      case 'arduino-nano':
+        if (pins.length >= 30) return buildArduinoNano(comp, entry, pins)
         break
       case 'tft5':
         if (pins.length >= 2) return buildTft5Inch(comp, entry, pins)
