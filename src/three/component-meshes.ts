@@ -42,6 +42,7 @@ import { buildDip, buildSevenSeg } from './meshes/ics'
 import { buildBuzzer, buildInstrumentBox, buildProbe } from './meshes/instruments'
 import { buildMultimeter } from './meshes/multimeter'
 import { buildEsp32S3DevKit, buildTft5Inch } from './meshes/embedded'
+import { buildRa8875Tft5 } from './meshes/tft-ra8875'
 import { tryModelOverride } from './meshes/gltf-overrides'
 
 export interface BuiltComponent {
@@ -200,6 +201,9 @@ function dispatch(
         break
       case 'tft5':
         if (pins.length >= 2) return buildTft5Inch(comp, entry, pins)
+        break
+      case 'tft5-ra8875':
+        if (pins.length >= 2) return buildRa8875Tft5(comp, entry, pins)
         break
       case 'probe':
         if (pins.length >= 1) return buildProbe(comp, entry, pins)
