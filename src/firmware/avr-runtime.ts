@@ -9,6 +9,9 @@ export interface AvrIoState {
   ddrB: number
   ddrC: number
   ddrD: number
+  pwmB: number[]
+  pwmC: number[]
+  pwmD: number[]
 }
 
 export interface AvrFirmwareMeta {
@@ -50,7 +53,7 @@ const serialEncoder = new TextEncoder()
 const serialDecoder = new TextDecoder()
 
 function emptyIo(): AvrIoState {
-  return { outB: 0, outC: 0, outD: 0, ddrB: 0, ddrC: 0, ddrD: 0 }
+  return { outB: 0, outC: 0, outD: 0, ddrB: 0, ddrC: 0, ddrD: 0, pwmB: new Array(8).fill(0), pwmC: new Array(8).fill(0), pwmD: new Array(8).fill(0) }
 }
 
 function idleSnapshot(): AvrRuntimeSnapshot {
@@ -331,6 +334,9 @@ export async function bootAvrFirmware(componentId: string): Promise<void> {
           ddrB: Number(msg.ddrB) & 0xff,
           ddrC: Number(msg.ddrC) & 0xff,
           ddrD: Number(msg.ddrD) & 0xff,
+          pwmB: Array.isArray(msg.pwmB) ? msg.pwmB.map(Number).slice(0, 8) : previous.io.pwmB,
+          pwmC: Array.isArray(msg.pwmC) ? msg.pwmC.map(Number).slice(0, 8) : previous.io.pwmC,
+          pwmD: Array.isArray(msg.pwmD) ? msg.pwmD.map(Number).slice(0, 8) : previous.io.pwmD,
         },
         cycles: typeof msg.cycles === 'number' ? msg.cycles : previous.cycles,
         speed: typeof msg.speed === 'number' ? msg.speed : previous.speed,

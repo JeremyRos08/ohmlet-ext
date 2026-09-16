@@ -59,12 +59,23 @@ async function start(programBytes: ArrayBuffer): Promise<void> {
   let outB = 0
   let outC = 0
   let outD = 0
-  portB.addListener((value: number) => { outB = value & 0xff })
-  portC.addListener((value: number) => { outC = value & 0xff })
-  portD.addListener((value: number) => { outD = value & 0xff })
+  const previous = { B: 0, C: 0, D: 0 }
+  const highCycles = { B: new Array(8).fill(0), C: new Array(8).fill(0), D: new Array(8).fill(0) }
+  const totalCycles = { B: 0, C: 0, D: 0 }
+  const samplePort = (port: keyof typeof previous, value: number, now: number) => {
+    const old = previous[port]
+    const elapsed = Math.max(0, now - totalCycles[port])
+    for (let bit = 0; bit < 8; bit++) if (old & (1 << bit)) highCycles[port][bit] += elapsed
+    previous[port] = value & 0xff
+    totalCycles[port] = now
+  }
+  portB.addListener((value: number) => { samplePort('B', value, cpu.cycles); outB = value & 0xff })
+  portC.addListener((value: number) => { samplePort('C', value, cpu.cycles); outC = value & 0xff })
+  portD.addListener((value: number) => { samplePort('D', value, cpu.cycles); outD = value & 0xff })
 
   const startWall = performance.now()
   let lastState = startWall
+  let lastStateCycles = cpu.cycles
   let lastSpeedWall = startWall
   let lastSpeedCycles = cpu.cycles
   running = true
@@ -97,9 +108,21 @@ async function start(programBytes: ArrayBuffer): Promise<void> {
         lastSpeedWall = wall
         lastSpeedCycles = cpu.cycles
       }
+      const frameCycles = Math.max(1, cpu.cycles - lastStateCycles)
+      const pwm = (port: keyof typeof previous) => {
+        const elapsed = Math.max(0, cpu.cycles - totalCycles[port])
+        const old = previous[port]
+        for (let bit = 0; bit < 8; bit++) if (old & (1 << bit)) highCycles[port][bit] += elapsed
+        totalCycles[port] = cpu.cycles
+        const values = highCycles[port].map((n) => Math.max(0, Math.min(1, n / frameCycles)))
+        highCycles[port].fill(0)
+        return values
+      }
+      const pwmB = pwm('B'), pwmC = pwm('C'), pwmD = pwm('D')
+      lastStateCycles = cpu.cycles
       scope.postMessage({
         t: 'io',
-        outB, outC, outD, ddrB, ddrC, ddrD,
+        outB, outC, outD, ddrB, ddrC, ddrD, pwmB, pwmC, pwmD,
         cycles: cpu.cycles,
         speed,
       })

@@ -11,7 +11,9 @@ export function inHeaderFrame(pins: THREE.Vector3[], build: (local: THREE.Vector
   const root = new THREE.Group()
   root.position.set(origin.x,0,origin.z)
   root.rotation.y = Math.atan2(-axis.z,axis.x)
-  root.add(result.object); root.updateMatrixWorld(true)
+  // Flatten the builder group into the rotated frame: callers and mesh tests
+  // can inspect the board parts directly while the frame still rotates as one.
+  root.add(...result.object.children); root.updateMatrixWorld(true)
   return { ...result, object:root, pinWorld:result.pinWorld?.map(p=>root.localToWorld(p.clone())) }
 }
 

@@ -79,8 +79,11 @@ class Arduino328pChip implements ChipInstance {
         const bit = 1 << map.bit
         const isOutput = running && !!(masks.ddr & bit)
         const high = !!(masks.out & bit)
-        if (isOutput) ctx.drivePin(pin, { v: high ? IO_HIGH : 0, rout: IO_ROUT })
-        else ctx.drivePin(pin, null)
+        if (isOutput) {
+          const pwm = map.port === 'B' ? io.pwmB[map.bit] : map.port === 'C' ? io.pwmC[map.bit] : io.pwmD[map.bit]
+          const voltage = Number.isFinite(pwm) && pwm > 0 && pwm < 1 ? IO_HIGH * pwm : (high ? IO_HIGH : 0)
+          ctx.drivePin(pin, { v: voltage, rout: IO_ROUT })
+        } else ctx.drivePin(pin, null)
         out[pin] = isOutput && high
 
         if (!isOutput) {
