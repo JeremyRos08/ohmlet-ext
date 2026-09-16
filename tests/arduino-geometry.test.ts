@@ -55,3 +55,21 @@ it('restores a legacy Uno footprint without losing its wires or parameters', () 
   expect(old.components[0].pos).toEqual({x:-10,z:0})
   expect(restoreLayout({ ...old, wires:[{id:'bad',from:'no-pin',to:'a1'}] })).toBeNull()
 })
+
+// A rotated ESP32 keeps its connector assembly and wireable pins in one frame.
+it('rotates the ESP32 detail model with all 44 pins', async () => {
+  const { buildEsp32S3DevKit } = await import('../src/three/meshes/embedded')
+  const entry = getEntry('esp32_s3_devkit')!
+  for (const rotation of [0,180] as const) {
+    const comp = {id:'ESP1',type:entry.type,at:rotation === 0 ? 'b10' : 'i31',rotation}
+    const pins = componentPinHoles(comp,entry,'standard')!.map(h=>{const p=holePosition(h!);return new THREE.Vector3(p.x,0,p.z)})
+    const built = buildEsp32S3DevKit(comp,entry,pins)
+    pins.forEach((p,i)=>{
+      expect(built.pinWorld![i].x).toBeCloseTo(p.x,8)
+      expect(built.pinWorld![i].z).toBeCloseTo(p.z,8)
+      expect(built.object.getObjectByName(`pin-label:${entry.pins[i]}`)).toBeDefined()
+    })
+    const details = built.object.getObjectByName('board-surface-details')!
+    expect(details.children.length).toBeLessThan(12)
+  }
+})

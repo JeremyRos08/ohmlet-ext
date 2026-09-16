@@ -1,3 +1,4 @@
+import { BoardDetails, inHeaderFrame } from './board-details'
 import * as THREE from 'three'
 import type { ComponentInstance } from '../../model/types'
 import type { CatalogEntry } from '../../model/catalog'
@@ -37,10 +38,14 @@ function roundedSlabGeometry(key: string, width: number, depth: number, height: 
   })
 }
 
+export function buildEsp32S3DevKit(comp: ComponentInstance, entry: CatalogEntry, pins: THREE.Vector3[]): BuildResult {
+  return inHeaderFrame(pins, local => buildEspLocal(comp, entry, local))
+}
+
 /** ESP32-S3-DevKitC-1, 2 × 22 pin breadboard module. */
-export function buildEsp32S3DevKit(
+function buildEspLocal(
   _comp: ComponentInstance,
-  _entry: CatalogEntry,
+  entry: CatalogEntry,
   pins: THREE.Vector3[],
 ): BuildResult {
   const group = new THREE.Group()
@@ -124,19 +129,23 @@ export function buildEsp32S3DevKit(
     }
   }
 
-  const usbShellGeo = cachedGeometry('esp32s3-usbc-shell', () => new THREE.BoxGeometry(1.48, 0.62, 1.08))
-  const usbMouthGeo = cachedGeometry('esp32s3-usbc-mouth', () => new THREE.BoxGeometry(0.08, 0.34, 0.70))
-  const usbShellMat = metal(0xc3c7ca, 0.24)
-  const mouthMat = plastic(0x17191b, 0.42)
-  for (const dz of [-1.05, 1.05]) {
-    const shell = new THREE.Mesh(usbShellGeo, usbShellMat)
-    shell.position.set(maxX + 0.47, pcbY + 0.22, c.z + dz)
-    group.add(shell)
-    const mouth = new THREE.Mesh(usbMouthGeo, mouthMat)
-    mouth.position.set(maxX + 1.22, pcbY + 0.22, c.z + dz)
-    group.add(mouth)
-  }
-
+  const details = new BoardDetails(group)
+  for(const dz of [-1.05,1.05])details.usb(maxX-.2,pcbY+.38,c.z+dz,1.48,.62,1.08)
+  details.chip(c.x+2.6,pcbY+.16,c.z,1.6)
+  for(let i=0;i<7;i++) { details.smd(c.x+i*.68,pcbY+.18,c.z-1.4,i%2===0); details.smd(c.x+i*.68,pcbY+.18,c.z+1.4) }
+  // Module castellations and laser-style shield legend.
+  for(let i=0;i<12;i++)for(const side of [-1,1])
+    details.box(moduleX+(i-5.5)*moduleW/13,pcbY+.32,c.z+side*moduleD/2,.28,.18,.20,metal(0xc0a75d,.4))
+  details.label('ESP32-S3',shield.position.x,pcbY+.69,c.z-.65,3.4,.52)
+  details.label('WROOM-1',shield.position.x,pcbY+.69,c.z+.1,3.1,.42)
+  details.label('Wi-Fi / BLE',shield.position.x,pcbY+.69,c.z+.8,2.8,.3)
+  pins.forEach((p,i)=>{
+    const mark=new THREE.Group();mark.name=`pin-label:${entry.pins[i]}`
+    mark.position.set(p.x,pcbY+.125,p.z+(p.z<c.z?1:-1)*.85)
+    const text=topLabel(entry.pins[i],1.05,.32,{w:256,h:64,fg:'#e9eee7'})
+    if(text){text.rotation.y=Math.PI/2;mark.add(text)}group.add(mark)
+  })
+  details.finish()
   const switchBaseGeo = cachedGeometry('esp32s3-switch-base', () => new THREE.BoxGeometry(0.88, 0.16, 0.72))
   const switchCapGeo = cachedGeometry('esp32s3-switch-cap', () => new THREE.BoxGeometry(0.42, 0.18, 0.42))
   for (const dz of [-1.55, 1.55]) {
@@ -156,9 +165,9 @@ export function buildEsp32S3DevKit(
   rgbLed.position.set(maxX - 3.1, pcbY + 0.18, c.z + 0.55)
   group.add(rgbLed)
 
-  const label = makeBoardLabel('ESP32-S3  DevKitC-1', Math.min(8.8, boardW * 0.40), 0.85)
+  const label = makeBoardLabel('DevKitC-1', 3.2, 0.5)
   if (label) {
-    label.position.set(c.x + boardW * 0.13, pcbY + 0.18, c.z)
+    label.position.set(c.x + 2.6, pcbY + 0.46, c.z)
     group.add(label)
   }
   const bootLabel = makeBoardLabel('BOOT', 1.5, 0.48, '#cfd7d4')
