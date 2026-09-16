@@ -50,6 +50,7 @@ import blinky555 from '../../../examples/blinky-555.json'
 import dateDisplay from '../../../examples/date-display.json'
 import counter from '../../../examples/counter.json'
 import nightLight from '../../../examples/night-light.json'
+import esp32Tft from '../../../examples/esp32-tft-ra8875.json'
 import pkg from '../../../package.json'
 import './asm-sheets.css'
 
@@ -122,6 +123,7 @@ const EXAMPLES: readonly ExampleEntry[] = [
   { title: 'Date display', layout: dateDisplay as unknown as CircuitLayout },
   { title: '0–9 counter', layout: counter as unknown as CircuitLayout },
   { title: 'Night light', layout: nightLight as unknown as CircuitLayout },
+  { title: 'ESP32 + TFT 5 pouces', layout: esp32Tft as unknown as CircuitLayout },
 ]
 
 const EMPTY_ISSUES: SimIssue[] = []

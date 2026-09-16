@@ -5,13 +5,15 @@ import { useStore } from '../../state/store'
 import { ActionSheet, Sheet, showToast } from '../kit'
 import blinky from '../../../examples/blinky-555.json'
 import counter from '../../../examples/counter.json'
+import esp32Tft from '../../../examples/esp32-tft-ra8875.json'
 import './ProjectsSheet.css'
 
 const PROJECTS: { title: string; tag: string; description: string; layout: CircuitLayout }[] = [
   { title: 'Banc LED', tag: '01 / ANALOGIQUE', description: 'Alimentation 5 V, LED protégée et sonde de tension. Prêt à mesurer.', layout: STARTER_LAYOUT },
   { title: 'Oscillateur NE555', tag: '02 / SIGNAUX', description: 'Clignotant câblé avec résistance, condensateur et capture du signal carré.', layout: blinky as CircuitLayout },
   { title: 'Compteur numérique', tag: '03 / LOGIQUE', description: 'Explorez le comptage et l’affichage à sept segments.', layout: counter as CircuitLayout },
-  { title: 'Projet vide', tag: '04 / CRÉATION', description: 'Une carte compacte pour construire votre propre montage.', layout: { version: 1, board: 'half', name: 'Nouveau montage', components: [], wires: [] } },
+  { title: 'ESP32 + TFT 5 pouces', tag: '04 / EMBARQUÉ', description: 'DevKitC-1, SPI, tactile I²C et écran RA8875 800×480.', layout: esp32Tft as CircuitLayout },
+  { title: 'Projet vide', tag: '05 / CRÉATION', description: 'Une carte compacte pour construire votre propre montage.', layout: { version: 1, board: 'half', name: 'Nouveau montage', components: [], wires: [] } },
 ]
 
 export function ProjectsSheet({ open, onDismiss, desktop }: { open: boolean; onDismiss: () => void; desktop: boolean }) {

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "ESP32 · TFT RA8875 5 pouces",
+  "description": "ESP32-S3 DevKitC-1 câblé sur un écran RA8875 800×480 : alimentation, SPI, reset, attente et tactile I²C.",
+  "board": "standard",
+  "components": [
+    { "id": "ESP1", "type": "esp32_s3_devkit", "at": "b10" },
+    { "id": "LCD1", "type": "tft_5in" }
+  ],
+  "wires": [
+    { "id": "w01", "from": "a30", "to": "LCD1:5V", "color": "#ef4444" },
+    { "id": "w02", "from": "a31", "to": "LCD1:GND", "color": "#20252a" },
+    { "id": "w03", "from": "a27", "to": "LCD1:SCK", "color": "#f59e0b" },
+    { "id": "w04", "from": "a28", "to": "LCD1:MISO", "color": "#38bdf8" },
+    { "id": "w05", "from": "a26", "to": "LCD1:MOSI", "color": "#a78bfa" },
+    { "id": "w06", "from": "a25", "to": "LCD1:CS", "color": "#fb7185" },
+    { "id": "w07", "from": "a24", "to": "LCD1:RST", "color": "#f97316" },
+    { "id": "w08", "from": "a21", "to": "LCD1:WAIT", "color": "#22c55e" },
+    { "id": "w09", "from": "a16", "to": "LCD1:INT", "color": "#14b8a6" },
+    { "id": "w10", "from": "a15", "to": "LCD1:LITE", "color": "#eab308" },
+    { "id": "w11", "from": "a13", "to": "LCD1:TP_SDA", "color": "#60a5fa" },
+    { "id": "w12", "from": "a14", "to": "LCD1:TP_SCL", "color": "#818cf8" },
+    { "id": "w13", "from": "a22", "to": "LCD1:TP_INT", "color": "#2dd4bf" },
+    { "id": "w14", "from": "a23", "to": "LCD1:TP_RST", "color": "#fb923c" }
+  ]
+}

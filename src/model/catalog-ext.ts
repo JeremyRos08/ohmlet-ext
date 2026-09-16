@@ -126,8 +126,30 @@ const ARDUINO_NANO: CatalogEntry = {
   doc: 'Breadboard Arduino Nano with emulated ATmega328P at 16 MHz. Flash a compiled Arduino .hex file from Properties. The two 15-pin headers sit in rows b/i, leaving rows a/j accessible for jumper wires. A6/A7 are analog-only, like the real Nano.',
 }
 
+const ADAFRUIT_BME280: CatalogEntry = {
+  type: 'adafruit_bme280', label: 'Adafruit BME280 (I²C / SPI)', category: 'ic', placement: 'offboard',
+  pins: ['VIN', '3V3', 'GND', 'SCK_SCL', 'SDI_SDA', 'SDO', 'CS'], sim: { kind: 'probe' },
+  visual: { shape: 'adafruit-module' },
+  doc: 'Adafruit BME280 breakout. VIN/3V3/GND and shared I²C (SCL/SDA) or SPI (SCK/SDI/SDO/CS) header. The board is documented and wireable; sensor register behavior is being added to the bus device library.',
+}
+const ADAFRUIT_SSD1306: CatalogEntry = {
+  type: 'adafruit_ssd1306_128x64', label: 'Adafruit OLED SSD1306 128×64', category: 'display', placement: 'offboard',
+  pins: ['VIN', '3V3', 'GND', 'SCL_SCK', 'SDA_MOSI', 'RST', 'CS', 'DC'], sim: { kind: 'probe' },
+  visual: { shape: 'adafruit-module' },
+  doc: 'Adafruit 128×64 OLED breakout with I²C and 4-wire SPI header. Connect VIN/3V3/GND and the selected bus pins. The module is available for layout and wiring; framebuffer peripheral behavior is being added to the bus device library.',
+}
+const ADAFRUIT_NEOPIXEL: CatalogEntry = {
+  type: 'adafruit_neopixel_ring', label: 'Adafruit NeoPixel Ring 12', category: 'display', placement: 'offboard',
+  pins: ['V+', 'VCC', 'GND', 'DIN', 'DOUT'], sim: { kind: 'probe' },
+  visual: { shape: 'adafruit-module' },
+  doc: 'Adafruit NeoPixel Ring 12 breakout. Wire V+ and GND, then DIN from an Arduino or ESP32 GPIO; DOUT chains to the next ring. The module is wireable in the lab and its LED protocol model is planned for the next device pass.',
+}
+
 if (!CATALOG.multimeter) CATALOG.multimeter = MULTIMETER
 if (!CATALOG.esp32_s3_devkit) CATALOG.esp32_s3_devkit = ESP32_S3_DEVKIT
 if (!CATALOG.tft_5in) CATALOG.tft_5in = TFT_5IN
 if (!CATALOG.arduino_uno_r3) CATALOG.arduino_uno_r3 = ARDUINO_UNO_R3
 if (!CATALOG.arduino_nano) CATALOG.arduino_nano = ARDUINO_NANO
+if (!CATALOG.adafruit_bme280) CATALOG.adafruit_bme280 = ADAFRUIT_BME280
+if (!CATALOG.adafruit_ssd1306_128x64) CATALOG.adafruit_ssd1306_128x64 = ADAFRUIT_SSD1306
+if (!CATALOG.adafruit_neopixel_ring) CATALOG.adafruit_neopixel_ring = ADAFRUIT_NEOPIXEL

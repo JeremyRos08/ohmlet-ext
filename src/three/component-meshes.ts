@@ -44,6 +44,7 @@ import { buildMultimeter } from './meshes/multimeter'
 import { buildEsp32S3DevKit, buildTft5Inch } from './meshes/embedded'
 import { buildRa8875Tft5 } from './meshes/tft-ra8875'
 import { buildArduinoNano, buildArduinoUno } from './meshes/arduino'
+import { buildAdafruitModule } from './meshes/adafruit-modules'
 import { tryModelOverride } from './meshes/gltf-overrides'
 
 export interface BuiltComponent {
@@ -214,6 +215,9 @@ function dispatch(
         break
       case 'tft5-ra8875':
         if (pins.length >= 2) return buildRa8875Tft5(comp, entry, pins)
+        break
+      case 'adafruit-module':
+        if (pins.length >= 2) return buildAdafruitModule(comp, entry, pins)
         break
       case 'probe':
         if (pins.length >= 1) return buildProbe(comp, entry, pins)
