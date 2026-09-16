@@ -13,9 +13,10 @@ import { attachToneAdapt, ChipIcon, PressableButton, useSpecular } from '../kit'
 
 export interface EmptyStateProps {
   onBrowseParts: () => void
+  onProjects: () => void
 }
 
-export function EmptyState({ onBrowseParts }: EmptyStateProps) {
+export function EmptyState({ onBrowseParts, onProjects }: EmptyStateProps) {
   const specRef = useSpecular<HTMLDivElement>()
   const cardRef = useRef<HTMLDivElement | null>(null)
   const setCard = useCallback(
@@ -37,13 +38,14 @@ export function EmptyState({ onBrowseParts }: EmptyStateProps) {
         <div className="app-empty-art" aria-hidden="true">
           <ChipIcon size={40} />
         </div>
-        <div className="lg-title app-empty-title">Build your first circuit</div>
+        <div className="lg-title app-empty-title">Votre atelier électronique</div>
         <div className="lg-subhead app-empty-body">
-          Place parts on the breadboard, wire them up, then tap the clock to run the simulation.
+          Ouvrez un montage prêt à simuler ou commencez avec les composants de votre choix.
         </div>
         <div className="app-empty-actions">
+          <PressableButton variant="tinted" size="lg" onClick={onProjects}>Ouvrir un atelier</PressableButton>
           <PressableButton variant="filled" size="lg" haptic icon={<ChipIcon size={20} />} onClick={onBrowseParts}>
-            Browse parts
+            Ajouter des composants
           </PressableButton>
         </div>
       </div>

@@ -14,6 +14,7 @@
  * renderMode contract.
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { STARTER_LAYOUT } from '../../model/starter-layout'
 import { useStore } from '../../state/store'
 import { BOARD_SIZES, boardOf, isBoardRows, MAX_BOARD_COUNT, MAX_BOARD_ROWS } from '../../model/types'
 import type { BoardSizeId, CircuitLayout, SimIssue } from '../../model/types'
@@ -116,6 +117,7 @@ interface ExampleEntry {
 }
 
 const EXAMPLES: readonly ExampleEntry[] = [
+  { title: 'Atelier LED · 5 V', layout: STARTER_LAYOUT },
   { title: '555 LED blinker', layout: blinky555 as unknown as CircuitLayout },
   { title: 'Date display', layout: dateDisplay as unknown as CircuitLayout },
   { title: '0–9 counter', layout: counter as unknown as CircuitLayout },
@@ -415,16 +417,13 @@ export function MoreSheet({ open, onDismiss, desktop = false }: MoreSheetProps) 
               {aboutOpen && (
                 <div className="asm-about" role="listitem">
                   <p>
-                    A 3D breadboard playground: place real parts on an 830-point board, wire them
-                    up, and watch them run on a live analog + digital simulator (custom MNA solver
-                    with behavioral ICs — 555s, counters, decoders, op-amps and friends). No
-                    microcontrollers, just honest electrons.
+                    Atelier électronique 3D : composants analogiques et logiques, Arduino,
+                    ESP32, instruments de mesure et simulation de circuits.
                   </p>
                   <p>
-                    Layouts import and export as plain JSON, and the AI Circuit Builder drafts a
-                    whole circuit from a one-line description.
+                    Importez et exportez vos montages en JSON. Les exemples sont modifiables,
+                    et les vues de caméra permettent d’inspecter chaque connexion.
                   </p>
-                  <p>Designed and built with Claude.</p>
                 </div>
               )}
             </ListGroup>

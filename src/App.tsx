@@ -45,6 +45,7 @@ import { EmptyState, Onboarding, StatusBar, WireColorStrip, hintForMode, markOnb
 import { UndoPill } from './ui/chrome/UndoPill'
 import { SelectionPill } from './ui/chrome/SelectionPill'
 import { RotateButton } from './ui/chrome/RotateButton'
+import { ProjectsSheet } from './ui/sheets/ProjectsSheet'
 import { PartsSheet } from './ui/sheets/PartsSheet'
 import { ScopeSheet } from './ui/sheets/ScopeSheet'
 import { MoreSheet } from './ui/sheets/MoreSheet'
@@ -393,7 +394,7 @@ function duplicateComponent(id: string): void {
 // App
 // ---------------------------------------------------------------------------
 
-type SheetKey = 'parts' | 'scope' | 'more'
+type SheetKey = 'projects' | 'parts' | 'scope' | 'more'
 type DockKey = SheetKey | 'wire' | 'none'
 
 export default function App() {
@@ -665,6 +666,7 @@ export default function App() {
   }
 
   const dockItems: readonly DockItem<DockKey>[] = [
+    { key: 'projects', icon: <ChipIcon size={26} />, label: 'Atelier' },
     { key: 'parts', icon: <ChipIcon size={26} />, label: 'Parts' },
     { key: 'wire', icon: <WireIcon size={26} />, label: 'Wire' },
     { key: 'scope', icon: <WaveformIcon size={26} />, label: 'Scope' },
@@ -746,6 +748,7 @@ export default function App() {
       {emptyVisible && (
         <EmptyState
           onBrowseParts={() => setActiveSheet('parts')}
+          onProjects={() => setActiveSheet('projects')}
         />
       )}
 
@@ -771,6 +774,7 @@ export default function App() {
       />
 
       {/* sheets (each renders its own kit Sheet; panel mode on desktop) */}
+      <ProjectsSheet open={activeSheet === 'projects'} onDismiss={() => setActiveSheet(null)} desktop={isDesktop} />
       <PartsSheet
         open={activeSheet === 'parts'}
         onDismiss={() => setActiveSheet(null)}

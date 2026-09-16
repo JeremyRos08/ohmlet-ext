@@ -9,18 +9,20 @@ import type { CircuitLayout } from './types'
  */
 export const STARTER_LAYOUT: CircuitLayout = {
   version: 1,
-  name: 'Ohmlet starter bench',
+  name: 'Atelier LED · 5 V',
+  board: 'half',
   description: '5 V supply driving an LED through a 1 kΩ resistor.',
   components: [
-    { id: 'PS1', type: 'power_supply', pos: { x: -7, z: 8 } },
-    { id: 'R1', type: 'resistor', holes: ['e10', 'f10'] },
+    { id: 'PS1', type: 'power_supply', params: { voltage: 5 } },
+    { id: 'R1', type: 'resistor', holes: ['e10', 'f10'], params: { resistance: 1000 } },
     { id: 'LED1', type: 'led', holes: ['e15', 'f15'], params: { color: 'red' } },
+    { id: 'PR1', type: 'scope_probe', holes: ['b15'], params: { channel: 1 } },
   ],
   wires: [
     { id: 'W1', from: 'PS1:+', to: 'top+0', color: '#ef4444' },
-    { id: 'W2', from: 'top+0', to: 'e10', color: '#ef4444' },
-    { id: 'W3', from: 'f10', to: 'e15', color: '#f59e0b' },
-    { id: 'W4', from: 'f15', to: 'top-0', color: '#3b82f6' },
+    { id: 'W2', from: 'top+1', to: 'd10', color: '#ef4444' },
+    { id: 'W3', from: 'g10', to: 'd15', color: '#f59e0b' },
+    { id: 'W4', from: 'g15', to: 'top-1', color: '#3b82f6' },
     { id: 'W5', from: 'PS1:-', to: 'top-0', color: '#3b82f6' },
   ],
 }

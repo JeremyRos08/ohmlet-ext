@@ -1,0 +1,11 @@
+.projects-intro { padding: 18px 20px 12px; }
+.projects-intro > span,.project-tag { font: 600 10px/1.5 ui-monospace, monospace; letter-spacing: .12em; color: #67d9cd; }
+.projects-intro h2 { font-size: 25px; line-height: 1.15; margin: 12px 0; }
+.projects-intro p { font-size: 13px; line-height: 1.6; opacity: .7; }
+.projects-grid { display: grid; gap: 12px; padding: 8px 20px 28px; }
+.project-card { display: flex; flex-direction: column; text-align: left; gap: 10px; color: inherit; background: linear-gradient(135deg,rgba(59,155,142,.13),rgba(255,255,255,.035)); border: 1px solid rgba(130,220,208,.2); border-radius: 16px; padding: 20px; cursor: pointer; font: inherit; }
+.project-card strong { font-size: 18px; }
+.project-card > span:not(.project-tag) { font-size: 12px; line-height: 1.5; }
+.project-card .project-open { margin-top: 6px; color: #67d9cd; }
+.project-card:hover { border-color: #67d9cd; }
+.project-card:focus-visible { outline: 2px solid #67d9cd; outline-offset: 3px; }
