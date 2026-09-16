@@ -66,7 +66,7 @@ function buildEspLocal(
   const pcb = new THREE.Mesh(
     roundedSlabGeometry(`esp32s3-pcb-rounded-${boardW.toFixed(1)}-${boardD.toFixed(1)}`, boardW, boardD, 0.22, 0.42),
     cachedMaterial('esp32s3-pcb-refined', () =>
-      new THREE.MeshPhysicalMaterial({ color: 0x123f34, roughness: 0.58, metalness: 0.08, clearcoat: 0.18 }),
+      new THREE.MeshPhysicalMaterial({ color: 0x172322, roughness: 0.58, metalness: 0.08, clearcoat: 0.18 }),
     ),
   )
   pcb.position.set(c.x, pcbY, c.z)
@@ -77,7 +77,7 @@ function buildEspLocal(
   const headerMat = plastic(0x101214, 0.52)
   for (const z of [minZ, maxZ]) {
     const rail = new THREE.Mesh(headerGeo, headerMat)
-    rail.position.set(c.x, pcbY + 0.18, z)
+    rail.position.set(c.x, pcbY - 0.32, z)
     group.add(rail)
   }
 
@@ -89,7 +89,7 @@ function buildEspLocal(
     collar.position.set(p.x, pcbY + 0.24, p.z)
     group.add(collar)
     const pin = new THREE.Mesh(pinGeo, pinMat)
-    pin.position.set(p.x, 0.38, p.z)
+    pin.position.set(p.x, pcbY + .12, p.z)
     group.add(pin)
   }
 
@@ -136,27 +136,18 @@ function buildEspLocal(
   // Module castellations and laser-style shield legend.
   for(let i=0;i<12;i++)for(const side of [-1,1])
     details.box(moduleX+(i-5.5)*moduleW/13,pcbY+.32,c.z+side*moduleD/2,.28,.18,.20,metal(0xc0a75d,.4))
-  details.label('ESP32-S3',shield.position.x,pcbY+.69,c.z-.65,3.4,.52)
-  details.label('WROOM-1',shield.position.x,pcbY+.69,c.z+.1,3.1,.42)
-  details.label('Wi-Fi / BLE',shield.position.x,pcbY+.69,c.z+.8,2.8,.3)
+  details.label('ESP32-S3',shield.position.x,pcbY+.69,c.z-.65,3.4,.52, '#343b3e')
+  details.label('WROOM-1',shield.position.x,pcbY+.69,c.z+.1,3.1,.42, '#343b3e')
+  details.label('Wi-Fi / BLE',shield.position.x,pcbY+.69,c.z+.8,2.8,.3, '#343b3e')
   pins.forEach((p,i)=>{
     const mark=new THREE.Group();mark.name=`pin-label:${entry.pins[i]}`
     mark.position.set(p.x,pcbY+.125,p.z+(p.z<c.z?1:-1)*.85)
     const text=topLabel(entry.pins[i],1.05,.32,{w:256,h:64,fg:'#e9eee7'})
     if(text){text.rotation.y=Math.PI/2;mark.add(text)}group.add(mark)
   })
+  pins.forEach(p=>{details.pad(p.x,pcbY+.13,p.z);details.pad(p.x,pcbY-.13,p.z)})
+  for(const dz of [-1.55,1.55])details.tactile(maxX-2.05,pcbY+.13,c.z+dz)
   details.finish()
-  const switchBaseGeo = cachedGeometry('esp32s3-switch-base', () => new THREE.BoxGeometry(0.88, 0.16, 0.72))
-  const switchCapGeo = cachedGeometry('esp32s3-switch-cap', () => new THREE.BoxGeometry(0.42, 0.18, 0.42))
-  for (const dz of [-1.55, 1.55]) {
-    const base = new THREE.Mesh(switchBaseGeo, metal(0xbfc1c2, 0.35))
-    base.position.set(maxX - 2.05, pcbY + 0.20, c.z + dz)
-    group.add(base)
-    const cap = new THREE.Mesh(switchCapGeo, plastic(0x202326, 0.45))
-    cap.position.set(maxX - 2.05, pcbY + 0.37, c.z + dz)
-    group.add(cap)
-  }
-
   const ledGeo = cachedGeometry('esp32s3-smd-led', () => new THREE.BoxGeometry(0.28, 0.08, 0.18))
   const pwrLed = new THREE.Mesh(ledGeo, cachedMaterial('esp32s3-led-red', () => new THREE.MeshStandardMaterial({ color: 0xff3b30, emissive: 0x8a0803, emissiveIntensity: 1.4 })))
   pwrLed.position.set(maxX - 3.1, pcbY + 0.18, c.z - 0.55)
