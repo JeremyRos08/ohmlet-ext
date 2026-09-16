@@ -454,7 +454,15 @@ export async function bootEsp32Firmware(componentId: string): Promise<void> {
 
     waiter = waitForMessage(worker, (m) => typeof m.created === 'boolean')
     worker.postMessage({ op: 'create', board: BOARD_MODEL, flash_mb: 16, psram_mb: 8, jit: true })
-    const created = await waiter
+    let created = await waiter
+    // Older deployed runtime assets may not contain Ohmlet's custom RA8875
+    // board model yet. Fall back to the stock ESP32-S3 model so a valid
+    // firmware image still boots instead of leaving the component unusable.
+    if (created.created !== true && BOARD_MODEL !== 'esp32s3') {
+      waiter = waitForMessage(worker, (m) => typeof m.created === 'boolean')
+      worker.postMessage({ op: 'create', board: 'esp32s3', flash_mb: 16, psram_mb: 8, jit: true })
+      created = await waiter
+    }
     if (created.created !== true) throw new Error('ESP32-S3 emulator could not create the virtual chip')
 
     if (record.mode !== 'app') {
@@ -499,3 +507,4 @@ export async function eraseEsp32Firmware(componentId: string): Promise<void> {
 export function clearEsp32Console(componentId: string): void {
   publish(componentId, { console: '' })
 }
+
