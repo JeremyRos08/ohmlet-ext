@@ -4,7 +4,8 @@ import type { CameraView } from '../../three/internal/camera-views'
 import { useStore } from '../../state/store'
 import './WorkbenchTools.css'
 
-export function WorkbenchTools({ onView, inspecting, onInspect, endpoint, onEndpoint, onHighlight }: {
+export function WorkbenchTools({ onLab, onView, inspecting, onInspect, endpoint, onEndpoint, onHighlight }: {
+  onLab: () => void
   onView: (view: CameraView, selected?: boolean) => void
   inspecting: boolean; onInspect: () => void; endpoint: string; onEndpoint: (ref: string) => void
   onHighlight: (endpoints: string[], wires: string[]) => void
@@ -20,6 +21,7 @@ export function WorkbenchTools({ onView, inspecting, onInspect, endpoint, onEndp
   useEffect(() => { setInput(endpoint) }, [endpoint])
   return <>
     <nav className="workbench-tools" aria-label="3D workbench tools">
+      <button type="button" onClick={onLab}>Labo</button>
       <details>
         <summary>Views</summary>
         <div className="workbench-view-menu">

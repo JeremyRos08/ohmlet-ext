@@ -1316,6 +1316,25 @@ export const useStore = create<AppState>()((set, get) => {
 
     // --- actions: simulation -------------------------------------------------
 
+    stepSim(steps = 20) {
+      if (get().running || !Number.isInteger(steps) || steps < 1 || steps > 200) return
+      if (!engine) {
+        scopeBuf = []
+        nextSampleT = 0
+        rebuildEngine(get().layout)
+      }
+      if (!engine) return
+      for (let i = 0; i < steps; i++) {
+        engine.advance(DEFAULT_DT, DEFAULT_DT)
+        if (engine.time >= nextSampleT - DEFAULT_DT * 0.5) {
+          takeScopeSample(engine.time)
+          nextSampleT = engine.time + scopeSampleInterval(get().scope.timeWindow)
+        }
+      }
+      trimScope(engine.time, get().scope.timeWindow)
+      publishNow()
+    },
+
     startSim() {
       if (get().running) return
       if (!engine) {

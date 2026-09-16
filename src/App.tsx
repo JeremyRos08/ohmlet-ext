@@ -45,6 +45,7 @@ import { EmptyState, Onboarding, StatusBar, WireColorStrip, hintForMode, markOnb
 import { UndoPill } from './ui/chrome/UndoPill'
 import { SelectionPill } from './ui/chrome/SelectionPill'
 import { RotateButton } from './ui/chrome/RotateButton'
+import { LabSheet } from './ui/sheets/LabSheet'
 import { ProjectsSheet } from './ui/sheets/ProjectsSheet'
 import { PartsSheet } from './ui/sheets/PartsSheet'
 import { ScopeSheet } from './ui/sheets/ScopeSheet'
@@ -394,7 +395,7 @@ function duplicateComponent(id: string): void {
 // App
 // ---------------------------------------------------------------------------
 
-type SheetKey = 'projects' | 'parts' | 'scope' | 'more'
+type SheetKey = 'lab' | 'projects' | 'parts' | 'scope' | 'more'
 type DockKey = SheetKey | 'wire' | 'none'
 
 export default function App() {
@@ -741,7 +742,7 @@ export default function App() {
 
       {/* top-center run capsule */}
       <StatusBar />
-      <WorkbenchTools onView={onView} inspecting={inspecting} onInspect={toggleInspect}
+      <WorkbenchTools onLab={() => setActiveSheet(activeSheet === 'lab' ? null : 'lab')} onView={onView} inspecting={inspecting} onInspect={toggleInspect}
         endpoint={inspectedEndpoint} onEndpoint={setInspectedEndpoint} onHighlight={onHighlight} />
 
       {/* empty-state card */}
@@ -774,6 +775,7 @@ export default function App() {
       />
 
       {/* sheets (each renders its own kit Sheet; panel mode on desktop) */}
+      <LabSheet open={activeSheet === 'lab'} onDismiss={() => setActiveSheet(null)} desktop={isDesktop} />
       <ProjectsSheet open={activeSheet === 'projects'} onDismiss={() => setActiveSheet(null)} desktop={isDesktop} />
       <PartsSheet
         open={activeSheet === 'parts'}

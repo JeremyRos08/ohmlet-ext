@@ -74,3 +74,19 @@ See `PERFORMANCE.md` for the optimization roadmap and benchmark rules.
 3. optimize dense MNA without changing electrical results;
 4. evaluate a Web Worker and sparse/WASM solver once benchmarks justify it;
 5. then expand instruments and the component library.
+
+## Laboratory panel — 2026-09-16
+
+The Labo toolbar button opens an instrument and measurement panel. It offers
+supply/generator/multimeter/probe placement, searchable per-pin voltages,
+component currents/power, solver diagnostics with selection, and a grouped BOM
+with CSV export. BOM grouping resolves catalog defaults before comparing values.
+
+Paused circuit stepping advances 20 or 200 fixed solver steps (1 or 10 ms),
+publishes telemetry and preserves oscilloscope captures. It is bounded to 200
+steps and rejected while running. AVR/ESP32 workers use separate clocks: this is
+circuit stepping, not an instruction-level firmware debugger.
+
+Validation: typecheck, production build, and 22 targeted tests passed, including
+step timing, pause/reset behavior, scope ordering and BOM CSV escaping. Browser
+visual review remains blocked by ERR_BLOCKED_BY_CLIENT on the local server.

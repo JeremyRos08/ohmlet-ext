@@ -206,6 +206,8 @@ export interface AppState {
   setRenderMode(mode: RenderModeId | null): void
 
   // --- actions: simulation ---
+  /** Advance the circuit solver by 1–200 fixed steps while paused. Firmware workers have their own clock. */
+  stepSim(steps?: number): void
   startSim(): void
   stopSim(): void
   resetSim(): void
