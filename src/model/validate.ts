@@ -443,7 +443,7 @@ export function validateLayout(input: unknown): ValidationResult {
         // sit clear of the active rig's board AND of every other instrument
         const slot = offboardSlot++
         if (posOk) {
-          const rect = offboardBodyRect(slot, pos)
+          const rect = offboardBodyRect(slot, pos, entry.type)
           const ext = boardExtents(config)
           if (rectsOverlap(rect, ext)) {
             errors.push(

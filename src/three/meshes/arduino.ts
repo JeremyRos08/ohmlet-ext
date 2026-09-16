@@ -25,6 +25,31 @@ function addPinPosts(group: THREE.Group, pins: THREE.Vector3[], yTop: number): v
   }
 }
 
+/** Printed pin references lie inside each header row and rotate with the board. */
+function addPinLabels(group: THREE.Group, entry: CatalogEntry, pins: THREE.Vector3[], centerZ: number, y: number): void {
+  const labels = new THREE.Group()
+  labels.name = `${entry.type}-pin-labels`
+  pins.forEach((pin, i) => {
+    const name = entry.pins[i]
+    const mark = new THREE.Group()
+    mark.name = `pin-label:${name}`
+    mark.userData.pinName = name
+    let dx = 0, dz = pin.z < centerZ ? 1 : -1
+    if (entry.type === 'arduino_nano') {
+      const row = centroidOf(pins.slice(i < 15 ? 0 : 15, i < 15 ? 15 : 30))
+      const center = centroidOf(pins)
+      const length = Math.hypot(center.x - row.x, center.z - row.z)
+      dx = (center.x - row.x) / length; dz = (center.z - row.z) / length
+    }
+    mark.position.set(pin.x + dx * 1.2, y, pin.z + dz * 1.2)
+    const text = name.replace(/_PWM/g, '~').replace(/_/g, '/')
+    const label = topLabel(text, 1.55, 0.43, { w: 256, h: 64, fg: '#ffffff' })
+    if (label) { label.rotation.y = Math.atan2(-dz, dx); mark.add(label) }
+    labels.add(mark)
+  })
+  group.add(labels)
+}
+
 function addLed(group: THREE.Group, x: number, z: number, color: number, name: string): void {
   const led = new THREE.Mesh(
     cachedGeometry('arduino-smd-led', () => new THREE.BoxGeometry(0.34, 0.10, 0.22)),
@@ -38,7 +63,7 @@ function addLed(group: THREE.Group, x: number, z: number, color: number, name: s
 /** Arduino Nano / ATmega328P, breadboard-mounted on two 15-pin headers. */
 export function buildArduinoNano(
   _comp: ComponentInstance,
-  _entry: CatalogEntry,
+  entry: CatalogEntry,
   pins: THREE.Vector3[],
 ): BuildResult {
   const group = new THREE.Group()
@@ -63,6 +88,7 @@ export function buildArduinoNano(
   pcb.position.set(c.x, pcbY, c.z)
   group.add(pcb)
   addPinPosts(group, pins, pcbY + 0.52)
+  addPinLabels(group, entry, pins, c.z, pcbY + 0.13)
 
   const usb = new THREE.Mesh(
     cachedGeometry('arduino-nano-usb', () => new THREE.BoxGeometry(1.65, 0.58, 2.25)),
@@ -97,23 +123,17 @@ export function buildArduinoNano(
   return { object: group, pinWorld: pins.map((p) => new THREE.Vector3(p.x, pcbY + 0.62, p.z)) }
 }
 
-/**
- * Arduino Uno R3 bench board. Ohmlet's generic off-board endpoint contract
- * supplies a long terminal row; keep those exact posts visible/wireable while
- * placing the familiar Uno PCB directly behind them.
- */
+/** Uno headers share the endpoint coordinates used by picking and wire routing. */
 export function buildArduinoUno(
   _comp: ComponentInstance,
   entry: CatalogEntry,
   pins: THREE.Vector3[],
 ): BuildResult {
   const group = new THREE.Group()
-  const c = centroidOf(pins)
-  const pinZ = c.z
-  const bodyW = 18.5
-  const bodyD = 11.8
-  const bodyCx = c.x
-  const bodyCz = pinZ - 7.8
+  const bodyW = 21
+  const bodyD = 12
+  const bodyCx = pins[0].x - 3 + bodyW / 2
+  const bodyCz = pins[0].z - 9 + 4
   const pcbY = 0.60
 
   const pcb = new THREE.Mesh(
@@ -126,18 +146,8 @@ export function buildArduinoUno(
   pcb.position.set(bodyCx, pcbY, bodyCz)
   group.add(pcb)
 
-  // Wireable breakout strip: every logical Uno header terminal is a visible
-  // post at the scene endpoint, so wiring never lands on invisible geometry.
-  const minX = Math.min(...pins.map((p) => p.x))
-  const maxX = Math.max(...pins.map((p) => p.x))
-  const rail = new THREE.Mesh(
-    new THREE.BoxGeometry(maxX - minX + 0.9, 0.34, 0.80),
-    plastic(0x101214, 0.50),
-  )
-  rail.name = 'arduino-uno-header'
-  rail.position.set(c.x, 0.40, pinZ)
-  group.add(rail)
   addPinPosts(group, pins, 0.92)
+  addPinLabels(group, entry, pins, bodyCz, pcbY + 0.15)
 
   const dip = new THREE.Mesh(
     cachedGeometry('arduino-uno-atmega-dip', () => new THREE.BoxGeometry(6.2, 0.72, 2.25)),
@@ -171,10 +181,6 @@ export function buildArduinoUno(
     lbl.position.set(bodyCx, pcbY + 0.20, bodyCz - 3.6)
     group.add(lbl)
   }
-  const pinGroup = new THREE.Group()
-  pinGroup.name = 'arduino-uno-pin-labels'
-  pinGroup.userData.pinNames = [...entry.pins]
-  group.add(pinGroup)
 
   return { object: group, pinWorld: pins.map((p) => new THREE.Vector3(p.x, 0.70, p.z)) }
 }

@@ -61,6 +61,7 @@ import {
 } from '../three/render-modes/capability'
 import { DEFAULT_DT, SimEngine } from '../sim/engine'
 import '../sim/chips/all' // side-effect: register every behavioral chip model
+import { restoreLayout } from '../model/restore-layout'
 import { STARTER_LAYOUT } from '../model/starter-layout'
 import { LayoutHistory } from './history'
 
@@ -350,13 +351,13 @@ function rectsOverlap(a: PlanRect, b: PlanRect): boolean {
 function nudgeInstrumentsClear(layout: CircuitLayout): CircuitLayout {
   const config = boardConfigOf(layout)
   const ext = boardExtents(config)
-  const units: { compIndex: number; slot: number; pos?: { x: number; z: number } }[] = []
+  const units: { compIndex: number; slot: number; type: string; pos?: { x: number; z: number } }[] = []
   let slot = 0
   layout.components.forEach((c, compIndex) => {
     const entry = getEntry(c.type)
-    if (entry?.placement === 'offboard') units.push({ compIndex, slot: slot++, pos: c.pos })
+    if (entry?.placement === 'offboard') units.push({ compIndex, slot: slot++, type: c.type, pos: c.pos })
   })
-  const rects = units.map((u) => offboardBodyRect(u.slot, u.pos))
+  const rects = units.map((u) => offboardBodyRect(u.slot, u.pos, u.type))
   const moved = new Map<number, { x: number; z: number }>() // unit index → new pos
   for (let i = 0; i < units.length; i++) {
     const pos = units[i].pos
@@ -366,11 +367,11 @@ function nudgeInstrumentsClear(layout: CircuitLayout): CircuitLayout {
     if (!blocked(rects[i])) continue
     let x = pos.x
     const z = ext.maxZ + 2.5 // body rect minZ = z−2 → strictly past the board edge
-    let r = offboardBodyRect(units[i].slot, { x, z })
+    let r = offboardBodyRect(units[i].slot, { x, z }, units[i].type)
     let guard = 4 * units.length + 8 // every unit blocks ≤2 shelf steps; always terminates
     while (blocked(r) && guard-- > 0) {
       x += 7
-      r = offboardBodyRect(units[i].slot, { x, z })
+      r = offboardBodyRect(units[i].slot, { x, z }, units[i].type)
     }
     moved.set(i, { x, z })
     rects[i] = r
@@ -527,8 +528,8 @@ function loadSavedLayout(): CircuitLayout {
     const raw = window.localStorage.getItem(LS_LAYOUT)
     if (!raw) return STARTER_LAYOUT
     const parsed: unknown = JSON.parse(raw)
-    const res = validateLayout(parsed)
-    if (res.ok && res.layout) return res.layout
+    const restored = restoreLayout(parsed)
+    if (restored) return restored
   } catch {
     /* corrupted save / no storage: start empty */
   }

@@ -269,14 +269,14 @@ export function instrumentsForLayout(layout: CircuitLayout): InstrumentObstacle[
     const entry = getEntry(comp.type)
     if (entry?.placement !== 'offboard') continue
     const mySlot = slot++
-    const rect = offboardBodyRect(mySlot, comp.pos)
+    const rect = offboardBodyRect(mySlot, comp.pos, comp.type)
     out.push({
       id: comp.id,
       ...rect,
       height: OFFBOARD_BODY_HEIGHT,
       terminals: entry.pins.map((_pin, i) => {
-        const p = offboardTerminalPosition(mySlot, i, comp.pos)
-        return { x: p.x, z: p.z, exitDir: { x: 0, z: 1 } }
+        const p = offboardTerminalPosition(mySlot, i, comp.pos, comp.type)
+        return { x: p.x, z: p.z, exitDir: { x: 0, z: comp.type === 'arduino_uno_r3' && i >= 13 ? -1 : 1 } }
       }),
     })
   }
@@ -359,7 +359,7 @@ function makeEndpointResolver(
     const pinIdx = rec.entry.pins.indexOf(term.pin)
     if (pinIdx < 0) return null
     // explicit instrument pos (movable instruments) overrides the slot shelf
-    const p = offboardTerminalPosition(rec.slot, pinIdx, rec.pos)
+    const p = offboardTerminalPosition(rec.slot, pinIdx, rec.pos, rec.entry.type)
     return { x: p.x, y: TERMINAL_TOP_Y, z: p.z }
   }
 }

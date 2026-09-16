@@ -601,8 +601,14 @@ export function offboardTerminalPosition(
   slot: number,
   pinIndex: number,
   pos?: { x: number; z: number },
+  type?: string,
 ): { x: number; z: number } {
-  const a = offboardBodyPosition(slot, pos)
+  const a = offboardBodyPosition(slot, pos, type)
+  if (type === 'arduino_uno_r3') {
+    return pinIndex < 13
+      ? { x: a.x + 3 + pinIndex, z: a.z + 9 }
+      : { x: a.x + 2 + pinIndex - 13, z: a.z - 1 }
+  }
   return { x: a.x + 2 + pinIndex * 2.5, z: a.z + 2 }
 }
 
@@ -613,8 +619,9 @@ export function offboardTerminalPosition(
 export function offboardBodyPosition(
   slot: number,
   pos?: { x: number; z: number },
+  type?: string,
 ): { x: number; z: number } {
-  return pos ?? { x: -10, z: 0 + slot * 7 }
+  return pos ?? (type === 'arduino_uno_r3' ? { x: -34, z: slot * 18 } : { x: -10, z: slot * 7 })
 }
 
 /** Default obstacle-box height of an off-board instrument unit (plan units). */
@@ -631,7 +638,9 @@ export const OFFBOARD_BODY_HEIGHT = 4
 export function offboardBodyRect(
   slot: number,
   pos?: { x: number; z: number },
+  type?: string,
 ): { minX: number; maxX: number; minZ: number; maxZ: number } {
-  const a = offboardBodyPosition(slot, pos)
+  const a = offboardBodyPosition(slot, pos, type)
+  if (type === 'arduino_uno_r3') return { minX: a.x - 0.5, maxX: a.x + 21, minZ: a.z - 2, maxZ: a.z + 10 }
   return { minX: a.x, maxX: a.x + 6.5, minZ: a.z - 2, maxZ: a.z + 2.5 }
 }
