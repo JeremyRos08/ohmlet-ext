@@ -84,28 +84,22 @@
   transform: translate(-50%, -50%);
 }
 
-/* ---- category chips (horizontal scroller) ---- */
+/* ---- category chips: all filters stay visible without sideways scrolling ---- */
 
 .psh-chips {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  margin: 0 -16px;
-  padding: 2px 16px 4px;
-  overflow-x: auto;
-  touch-action: pan-x;
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.psh-chips::-webkit-scrollbar {
-  display: none;
+  margin: 0;
+  padding: 2px 0 4px;
+  touch-action: pan-y;
 }
 /* category chips: nested-glass slabs; the active one is a filled blue chip
    with its own top bent-light (no conic ring — ::after is the hit slot) */
 .psh-chip {
   position: relative;
   flex: 0 0 auto;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 15px;
   border: none;
   border-radius: 999px;
@@ -116,7 +110,7 @@
   color: var(--label-2);
   font: 600 15px/20px var(--lg-font);
   -webkit-tap-highlight-color: transparent;
-  touch-action: pan-x;
+  touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
   cursor: pointer;
@@ -153,7 +147,7 @@
 
 .psh-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(148px, 100%), 1fr));
   gap: 10px;
   padding-bottom: 8px;
 }
@@ -188,10 +182,8 @@
 .psh-card-label {
   font: 600 15px/19px var(--lg-font);
   letter-spacing: -0.01em;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  display: block;
+  overflow-wrap: anywhere;
 }
 .psh-card-meta {
   padding: 2px 7px;
@@ -226,3 +218,11 @@
   padding: 24px 0 16px;
   text-align: center;
 }
+
+/* Wider desktop catalog; bounded by the viewport and the dock's left inset. */
+.psh.lg-panel {
+  width: min(560px, calc(100vw - var(--lg-safe-left, 0px) - var(--lg-safe-right, 0px) - 112px));
+}
+.psh .lg-panel-content { scrollbar-gutter: stable; }
+.psh-card { min-width: 0; }
+.psh-search-input { box-sizing: border-box; min-width: 0; }
