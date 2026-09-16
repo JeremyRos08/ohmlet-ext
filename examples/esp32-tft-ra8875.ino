@@ -3,8 +3,11 @@
 #include <Wire.h>
 
 // Ohmlet lab example: ESP32-S3 DevKitC-1 + EastRising RA8875 5in.
-// Compile for ESP32-S3, then flash the generated merged/factory .bin in
-// Properties on ESP1. The layout uses the same pins as this sketch.
+// Target board: ESP32S3 Dev Module (FQBN: esp32:esp32:esp32s3).
+// The AVR core (arduino:avr) is not enough for this sketch. Install the
+// Espressif core first; the exact CLI commands are in examples/README.md.
+// Compile for ESP32-S3, then import the generated .ino.bin in ESP1
+// Properties. The layout uses the same pins as this sketch.
 static constexpr int TFT_CS = 10;
 static constexpr int TFT_RST = 9;
 static constexpr int TFT_WAIT = 8;
@@ -32,3 +35,4 @@ void loop() {
   if (millis() - last >= 1000) { last = millis(); Serial.println("TFT heartbeat"); }
   delay(1);
 }
+
