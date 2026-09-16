@@ -1,3 +1,4 @@
+import { buildLabEnvironment } from './lab-environment'
 import { fitCameraView, type CameraView } from './internal/camera-views'
 /**
  * The 3D breadboard scene — implements IBreadboardScene (src/three/scene-api.ts).
@@ -223,7 +224,7 @@ const FILL_INTENSITY = 0.22
 const SHADOW_MAP_SIZE = 2048
 /** lit laminate desk plane (receives the key-light shadow physically) */
 const GROUND_BACKDROP_Y = -1.3
-const GROUND_SIZE = 640
+const GROUND_SIZE = 220
 /**
  * Camera layer for the Studio raster-overlay compositing pass: everything
  * excluded from the path-traced still (overlay subtree + grow paddles) is
@@ -445,6 +446,7 @@ interface Mounted {
   fillLight: THREE.DirectionalLight
   /** desk: lit laminate plane, receives the key shadow (recentered on board rebuild) */
   groundGroup: THREE.Group
+  labEnvironment: ReturnType<typeof buildLabEnvironment>
   groundGeo: THREE.PlaneGeometry
   backdropMat: THREE.MeshStandardMaterial
   backdropTexs: THREE.Texture[]
@@ -1184,10 +1186,10 @@ export class BreadboardScene implements IBreadboardScene {
     // the key-light shadow physically, so the board and instruments sit on a
     // believable surface instead of floating in an unlit void (DESIGN §9
     // "product photo of a real breadboard on a desk"). The texture's alpha
-    // fades to 0 at the rim, dissolving into the background with no edge.
+    // is opaque so the finite tabletop edge remains visible.
     const groundGroup = new THREE.Group()
     groundGroup.name = 'ground'
-    const groundGeo = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE)
+    const groundGeo = new THREE.PlaneGeometry(GROUND_SIZE, 136)
     const deskTex = makeDeskTextures(renderer.capabilities.getMaxAnisotropy())
     const backdropMat = new THREE.MeshStandardMaterial(
       deskTex
@@ -1195,10 +1197,9 @@ export class BreadboardScene implements IBreadboardScene {
             map: deskTex.map, // repeats (per-map UV transforms, three r152+)
             roughnessMap: deskTex.rough,
             roughness: 1, // multiplied by the roughness map (≈ 0.82 base)
-            alphaMap: deskTex.alpha, // non-repeating radial rim fade
             metalness: 0,
-            transparent: true,
-            depthWrite: false,
+            transparent: false,
+            depthWrite: true,
           }
         : { color: 0x2c241d, roughness: 0.9, metalness: 0 },
     )
@@ -1210,6 +1211,8 @@ export class BreadboardScene implements IBreadboardScene {
     backdrop.position.y = GROUND_BACKDROP_Y
     backdrop.receiveShadow = true // the ONE shadow map lands here
     groundGroup.add(backdrop)
+    const labEnvironment = buildLabEnvironment()
+    groundGroup.add(labEnvironment.group)
     groundGroup.position.set(cx, 0, cz)
     scene.add(groundGroup)
     freezeTransforms(groundGroup) // static (B2); board rebuilds updateMatrix
@@ -1570,6 +1573,7 @@ export class BreadboardScene implements IBreadboardScene {
       keyLight,
       fillLight,
       groundGroup,
+      labEnvironment,
       groundGeo,
       backdropMat,
       backdropTexs,
@@ -1765,6 +1769,7 @@ export class BreadboardScene implements IBreadboardScene {
     m.tipMat.dispose()
     m.postGeo.dispose()
     m.postMat.dispose()
+    m.labEnvironment.dispose()
     m.groundGeo.dispose()
     m.backdropMat.dispose()
     for (const t of m.backdropTexs) t.dispose()
