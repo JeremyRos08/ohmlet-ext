@@ -1,5 +1,5 @@
 import type { ComponentInstance } from '../model/types'
-import { getEsp32GpioState, setEsp32GpioInput } from '../firmware/esp32-runtime'
+import { getEsp32GpioState, setEsp32GpioInput, setEsp32PowerState } from '../firmware/esp32-runtime'
 import { registerChip, type ChipInstance, type ChipStepCtx } from './chip-api'
 
 const GPIO_ROUT_OHMS = 45
@@ -36,12 +36,14 @@ class Esp32S3Chip implements ChipInstance {
 
   step(ctx: ChipStepCtx): void {
     const state = getEsp32GpioState(this.comp.id)
-    const v5 = finite(ctx.readPin('5V'))
-    const v33a = finite(ctx.readPin('3V3_1'))
-    const v33b = finite(ctx.readPin('3V3_2'))
+    const ground = ctx.readPin('GND_J1')
+    const v5 = finite(ctx.readPin('5V') - ground)
+    const v33a = finite(ctx.readPin('3V3_1') - ground)
+    const v33b = finite(ctx.readPin('3V3_2') - ground)
     const poweredFrom5V = v5 >= 4.0
     const externallyPowered33 = Math.max(v33a, v33b) >= 2.7
     const powered = poweredFrom5V || externallyPowered33
+    setEsp32PowerState(this.comp.id, powered)
 
     // The DevKit's onboard regulator provides 3.3 V from the 5 V header/USB.
     // When powered directly from 3V3 the pins are not force-driven back into

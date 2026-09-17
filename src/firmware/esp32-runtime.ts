@@ -59,6 +59,17 @@ const snapshots = new Map<string, Esp32RuntimeSnapshot>()
 const listeners = new Map<string, Set<() => void>>()
 const workers = new Map<string, Worker>()
 const gpioStates = new Map<string, Esp32GpioState>()
+const powerStates = new Map<string, boolean>()
+
+/** Supply state reported by the circuit solver, never by the firmware. */
+export function setEsp32PowerState(componentId: string, powered: boolean): void {
+  if (powerStates.get(componentId) === powered) return
+  powerStates.set(componentId, powered)
+  if (!powered) {
+    stopEsp32Firmware(componentId)
+    publish(componentId, { message: 'ESP32 unpowered · connect supply and GND, then Boot', display: undefined })
+  }
+}
 let displaySeq = 0
 
 function emptyGpio(): Esp32GpioState {
@@ -418,6 +429,9 @@ export function stopEsp32Firmware(componentId: string): void {
 }
 
 export async function bootEsp32Firmware(componentId: string): Promise<void> {
+  if (powerStates.get(componentId) !== true) {
+    throw new Error('ESP32 unpowered: connect supply and GND and run the circuit before Boot')
+  }
   const record = await dbGet(componentId)
   if (!record) throw new Error('No firmware has been flashed to this ESP32-S3')
 
@@ -483,6 +497,7 @@ export async function bootEsp32Firmware(componentId: string): Promise<void> {
     }
 
     waiter = waitForMessage(worker, (m) => typeof m.started === 'boolean')
+    if (powerStates.get(componentId) !== true) throw new Error('ESP32 power lost during startup')
     worker.postMessage({ op: 'start', appDirect: record.mode === 'app' })
     const started = await waiter
     if (started.started !== true) throw new Error('ESP32-S3 firmware did not boot')

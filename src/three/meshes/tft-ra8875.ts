@@ -260,6 +260,11 @@ export function buildRa8875Tft5(
           surface.texture.needsUpdate = true
         }
         const frame = source ? getEsp32DisplayFrame(source) : undefined
+        if (!frame && lastSeq !== -1) {
+          lastSeq = -1
+          drawIdleScreen(surface.ctx)
+          surface.texture.needsUpdate = true
+        }
         if (!frame || frame.seq === lastSeq) return
         lastSeq = frame.seq
         drawRgb565(surface, frame.width, frame.height, frame.rgb565)
