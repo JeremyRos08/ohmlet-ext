@@ -455,12 +455,13 @@ export async function bootEsp32Firmware(componentId: string): Promise<void> {
     waiter = waitForMessage(worker, (m) => typeof m.created === 'boolean')
     worker.postMessage({ op: 'create', board: BOARD_MODEL, flash_mb: 16, psram_mb: 8, jit: true })
     let created = await waiter
+    const hasRa8875 = created.created === true
     // Older deployed runtime assets may not contain Ohmlet's custom RA8875
     // board model yet. Fall back to the stock ESP32-S3 model so a valid
     // firmware image still boots instead of leaving the component unusable.
-    if (created.created !== true && BOARD_MODEL !== 'esp32s3') {
+    if (!hasRa8875) {
       waiter = waitForMessage(worker, (m) => typeof m.created === 'boolean')
-      worker.postMessage({ op: 'create', board: 'esp32s3', flash_mb: 16, psram_mb: 8, jit: true })
+      worker.postMessage({ op: 'create', board: 'none', flash_mb: 16, psram_mb: 8, jit: true })
       created = await waiter
     }
     if (created.created !== true) throw new Error('ESP32-S3 emulator could not create the virtual chip')
@@ -486,7 +487,7 @@ export async function bootEsp32Firmware(componentId: string): Promise<void> {
     const started = await waiter
     if (started.started !== true) throw new Error('ESP32-S3 firmware did not boot')
 
-    publish(componentId, { status: 'running', message: 'Firmware running · GPIO + RA8875 active' })
+    publish(componentId, { status: 'running', message: hasRa8875 ? 'Firmware running · GPIO + RA8875 active' : 'Firmware running · RA8875 unavailable (runtime update required)' })
   } catch (error) {
     worker?.terminate()
     workers.delete(componentId)
@@ -507,4 +508,3 @@ export async function eraseEsp32Firmware(componentId: string): Promise<void> {
 export function clearEsp32Console(componentId: string): void {
   publish(componentId, { console: '' })
 }
-

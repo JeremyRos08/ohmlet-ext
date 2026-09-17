@@ -1,15 +1,18 @@
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, stat, writeFile, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 // The runtime branch is produced by .github/workflows/esp32-runtime.yml from a
 // pinned esp32sim revision plus Ohmlet's GPIO/display bridge patches. Using the
 // upstream demo site here silently dropped those patches, so firmware could run
 // while its GPIO never reached the solved breadboard circuit.
+const RUNTIME_REVISION = '150ca548a9abdf8f6c45e88e9e2a61db57e6dca1'
 const BASE =
   process.env.ESP32SIM_RUNTIME_URL ??
-  'https://raw.githubusercontent.com/JeremyRos08/ohmlet-ext/runtime'
+  `https://raw.githubusercontent.com/JeremyRos08/ohmlet-ext/${RUNTIME_REVISION}`
 const OUT = join(process.cwd(), 'public', 'esp32sim')
-const REFRESH = process.env.ESP32SIM_REFRESH === '1'
+const marker = join(OUT, 'runtime-version.txt')
+const installed = await readFile(marker, 'utf8').catch(() => '')
+const REFRESH = process.env.ESP32SIM_REFRESH === '1' || installed !== BASE
 
 // Runtime-branch assets are intentionally flat. ESP32SIM_RUNTIME_URL can point
 // at a mirror with the same layout for offline/private deployments.
@@ -48,3 +51,6 @@ await mkdir(OUT, { recursive: true })
 for (const [remote, name, minBytes] of assets) {
   await download(remote, join(OUT, name), minBytes)
 }
+
+// Record the version only after every asset has downloaded successfully.
+await writeFile(marker, BASE)
