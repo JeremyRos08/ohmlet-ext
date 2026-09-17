@@ -33,3 +33,20 @@ it('keeps the widest breakout header on its PCB and pads horizontal', () => {
   expect(built.object.getObjectByName('module-pin-pad')!.rotation.x).toBe(0)
   expect(built.object.getObjectByName('oled-glass')).toBeDefined()
 })
+
+
+it('exposes each module pin above its header at the wire attachment height', () => {
+  for (const type of ['adafruit_ssd1306_128x64', 'adafruit_bme280', 'adafruit_neopixel_ring']) {
+    const entry = getEntry(type)!
+    const pins = entry.pins.map((_, i) => new THREE.Vector3(i * 2.5, 0, 0))
+    const built = buildAdafruitModule({ id: 'M', type }, entry, pins)
+    const header = new THREE.Box3().setFromObject(built.object.getObjectByName('module-header')!)
+    entry.pins.forEach((name, i) => {
+      const post = new THREE.Box3().setFromObject(built.object.getObjectByName(`module-pin-${name}`)!)
+      expect(post.max.y).toBeGreaterThan(header.max.y + .2)
+      expect(post.max.y).toBeCloseTo(built.pinWorld![i].y)
+      const glass = built.object.getObjectByName('oled-glass')
+      if (glass) expect(post.intersectsBox(new THREE.Box3().setFromObject(glass))).toBe(false)
+    })
+  }
+})

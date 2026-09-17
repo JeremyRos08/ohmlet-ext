@@ -2274,7 +2274,7 @@ export class BreadboardScene implements IBreadboardScene {
         // keep their generous target without a second, floating visual
         const post = new THREE.Mesh(m.postGeo, m.postMat)
         post.visible = false
-        if (comp.type === 'arduino_uno_r3') {
+        if (comp.type === 'arduino_uno_r3' || entry.visual?.shape === 'adafruit-module') {
           post.position.set(p.x, TERMINAL_TOP_Y, p.z)
           post.scale.set(0.8, 1, 0.7)
         } else post.position.set(p.x, TERMINAL_TOP_Y + POST_PROXY_DY, p.z + POST_PROXY_DZ)
