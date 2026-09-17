@@ -11,21 +11,27 @@ void sendOLED(uint8_t value, bool data) {
   digitalWrite(CS, HIGH); delay(100);
 }
 void setup() {
+  Serial.begin(115200);
+  Serial.println("OLED: initialisation SPI lente");
   pinMode(CLK, OUTPUT); pinMode(DATA, OUTPUT); pinMode(CS, OUTPUT);
   pinMode(DC, OUTPUT); pinMode(RESET_PIN, OUTPUT);
   digitalWrite(CS, HIGH); digitalWrite(CLK, LOW);
   digitalWrite(RESET_PIN, LOW); delay(500); digitalWrite(RESET_PIN, HIGH); delay(500);
+  Serial.println("OLED: commande ON");
   sendOLED(0xAF, false); // Display on
   sendOLED(0xA5, false); // All pixels on: visible confirmation within a few seconds
-  delay(2000);
+  Serial.println("OLED: blanc pendant 10 secondes");
+  delay(10000);
   sendOLED(0xA4, false); // RAM display
   sendOLED(0xB3, false); // Page 3
   sendOLED(0x06, false); sendOLED(0x13, false); // Column 54
   // A small smile, sent a column at a time (initial RAM is clear in the simulator).
+  Serial.println("OLED: dessin du visage");
   const uint8_t smile[] = {0x3c,0x42,0xa5,0x81,0xa5,0x99,0x42,0x3c};
   for (uint8_t v : smile) sendOLED(v, true);
 }
 void loop() {
+  Serial.println("OLED: inversion");
   sendOLED(0xA7, false); delay(2000);
   sendOLED(0xA6, false); delay(2000);
 }

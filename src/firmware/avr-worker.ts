@@ -1,3 +1,4 @@
+import { timerOutputMasks } from './avr-pwm'
 import * as avr from 'avr8js'
 import { AvrSerialBridge } from './avr-serial'
 
@@ -109,12 +110,13 @@ async function start(programBytes: ArrayBuffer): Promise<void> {
         lastSpeedCycles = cpu.cycles
       }
       const frameCycles = Math.max(1, cpu.cycles - lastStateCycles)
+      const timerMasks = timerOutputMasks(cpu.data[avr.timer0Config.TCCRA], cpu.data[avr.timer1Config.TCCRA], cpu.data[avr.timer2Config.TCCRA])
       const pwm = (port: keyof typeof previous) => {
         const elapsed = Math.max(0, cpu.cycles - totalCycles[port])
         const old = previous[port]
         for (let bit = 0; bit < 8; bit++) if (old & (1 << bit)) highCycles[port][bit] += elapsed
         totalCycles[port] = cpu.cycles
-        const values = highCycles[port].map((n) => Math.max(0, Math.min(1, n / frameCycles)))
+        const values = highCycles[port].map((n, bit) => (timerMasks[port] & (1 << bit)) ? Math.max(0, Math.min(1, n / frameCycles)) : NaN)
         highCycles[port].fill(0)
         return values
       }
