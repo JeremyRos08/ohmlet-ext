@@ -1,3 +1,4 @@
+import { AvrIoQueue } from './avr-io-queue'
 import { requestWebSerialSession, type SerialSession } from './web-serial'
 
 export type AvrPortName = 'B' | 'C' | 'D'
@@ -43,6 +44,7 @@ const DB_VERSION = 1
 const STORE = 'images'
 const MAX_CONSOLE = 40_000
 
+const ioQueues = new Map<string, AvrIoQueue<AvrIoState>>()
 const snapshots = new Map<string, AvrRuntimeSnapshot>()
 const listeners = new Map<string, Set<() => void>>()
 const workers = new Map<string, Worker>()
@@ -70,6 +72,17 @@ function ensureSnapshot(id: string): AvrRuntimeSnapshot {
 }
 
 function publish(id: string, patch: Partial<AvrRuntimeSnapshot>): void {
+  if (patch.io) {
+    if (patch.status && patch.status !== 'running') ioQueues.delete(id)
+    else {
+      let queue = ioQueues.get(id)
+      if (!queue) { queue = new AvrIoQueue(emptyIo()); ioQueues.set(id, queue) }
+      try { queue.push(patch.io) } catch (error) {
+        workers.get(id)?.terminate(); workers.delete(id); ioQueues.delete(id)
+        patch = { ...patch, status: 'error', message: String(error), error: String(error), io: emptyIo() }
+      }
+    }
+  }
   snapshots.set(id, { ...ensureSnapshot(id), ...patch })
   listeners.get(id)?.forEach((fn) => fn())
 }
@@ -98,6 +111,10 @@ export function subscribeAvrRuntime(componentId: string, fn: () => void): () => 
 
 export function getAvrIoState(componentId: string): AvrIoState {
   return ensureSnapshot(componentId).io
+}
+
+export function nextAvrIoState(componentId: string): AvrIoState {
+  return ioQueues.get(componentId)?.next() ?? getAvrIoState(componentId)
 }
 
 function portIndex(port: AvrPortName, bit: number): number {

@@ -2,6 +2,7 @@ import type { ComponentInstance } from '../model/types'
 import { registerChip, type ChipInstance, type ChipStepCtx } from './chip-api'
 import {
   getAvrIoState,
+  nextAvrIoState,
   getAvrRuntimeSnapshot,
   setAvrAnalogInput,
   setAvrDigitalInput,
@@ -58,7 +59,7 @@ class Arduino328pChip implements ChipInstance {
   step(ctx: ChipStepCtx): void {
     const usbPower = this.comp.params?.usbPower !== false
     const running = getAvrRuntimeSnapshot(this.comp.id).status === 'running'
-    const io = getAvrIoState(this.comp.id)
+    const io = nextAvrIoState(this.comp.id)
 
     // USB is modeled as the board's power source when enabled. This makes the
     // familiar 5V/3V3/GND headers usable exactly like a real USB-powered Uno

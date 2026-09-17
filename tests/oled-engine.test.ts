@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 const runtime = vi.hoisted(() => ({ io: {outB:0,outC:0,outD:0,ddrB:63,ddrC:0,ddrD:0,pwmB:Array(8).fill(0),pwmC:Array(8).fill(0),pwmD:Array(8).fill(0)} }))
-vi.mock('../src/firmware/avr-runtime',()=>({getAvrIoState:()=>runtime.io,getAvrRuntimeSnapshot:()=>({status:'running'}),setAvrAnalogInput:()=>{},setAvrDigitalInput:()=>{}}))
+vi.mock('../src/firmware/avr-runtime',()=>({getAvrIoState:()=>runtime.io,nextAvrIoState:()=>runtime.io,getAvrRuntimeSnapshot:()=>({status:'running'}),setAvrAnalogInput:()=>{},setAvrDigitalInput:()=>{}}))
 import '../src/model/catalog-ext'
 import { SimEngine } from '../src/sim/engine'
 import { getSSD1306 } from '../src/sim/ssd1306'
