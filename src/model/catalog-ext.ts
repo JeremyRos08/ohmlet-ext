@@ -2,6 +2,7 @@ import { CATALOG, type CatalogEntry } from './catalog'
 import '../sim/multimeter-chip'
 import '../sim/esp32-chip'
 import '../sim/arduino-chip'
+import '../sim/input-modules'
 
 /** Ohmlet-ext catalog additions, loaded once at app boot. */
 const MULTIMETER: CatalogEntry = {
@@ -146,6 +147,20 @@ const ADAFRUIT_NEOPIXEL: CatalogEntry = {
 }
 
 if (!CATALOG.multimeter) CATALOG.multimeter = MULTIMETER
+CATALOG.analog_control_module = {
+  type: 'analog_control_module', label: 'Commande analogique réglable', category: 'ic', placement: 'offboard',
+  pins: ['VCC', 'GND', 'OUT'],
+  params: [{ key: 'position', label: 'Position', kind: 'number', default: 0.5, min: 0, max: 1, step: 0.01, runtime: true }],
+  sim: { kind: 'chip', model: 'analog_control_module' }, visual: { shape: 'adafruit-module' },
+  doc: 'Module générique simulé : OUT varie de GND à VCC selon Position, avec 1 kΩ de résistance de sortie. Alimentation 2,7 à 5,5 V. Le courant consommé par le module n’est pas modélisé.',
+}
+CATALOG.obstacle_sensor_module = {
+  type: 'obstacle_sensor_module', label: 'Détecteur obstacle numérique', category: 'ic', placement: 'offboard',
+  pins: ['VCC', 'GND', 'OUT'],
+  params: [{ key: 'detected', label: 'Obstacle détecté', kind: 'boolean', default: false, runtime: true }],
+  sim: { kind: 'chip', model: 'obstacle_sensor_module' }, visual: { shape: 'adafruit-module' },
+  doc: 'Module générique simulé : OUT est bas quand Obstacle détecté est activé, haut sinon. Alimentation 2,7 à 5,5 V. Détection commandée dans les propriétés, sans calcul optique ni modèle de consommation.',
+}
 if (!CATALOG.esp32_s3_devkit) CATALOG.esp32_s3_devkit = ESP32_S3_DEVKIT
 if (!CATALOG.tft_5in) CATALOG.tft_5in = TFT_5IN
 if (!CATALOG.arduino_uno_r3) CATALOG.arduino_uno_r3 = ARDUINO_UNO_R3
