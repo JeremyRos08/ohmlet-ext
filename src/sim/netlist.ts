@@ -137,7 +137,13 @@ export function buildNetlist(layout: CircuitLayout): Netlist {
     const comp = byId.get(term.componentId)
     if (!comp) return null
     const entry = getEntry(comp.type)
-    if (!entry || entry.placement !== 'offboard' || !entry.pins.includes(term.pin)) return null
+    if (!entry || !entry.pins.includes(term.pin)) return null
+    if (entry.type === 'esp32_s3_devkit') {
+      const holes = componentPinHoles(comp, entry, board)
+      const h = holes?.[entry.pins.indexOf(term.pin)]
+      return h ? netIdForHole(h) : null
+    }
+    if (entry.placement !== 'offboard') return null
     return netIdForTerminal(term.componentId, term.pin)
   }
 

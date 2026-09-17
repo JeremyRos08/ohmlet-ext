@@ -660,7 +660,7 @@ export function validateLayout(input: unknown): ValidationResult {
         endpointsOk = false
         continue
       }
-      if (target.entry.placement !== 'offboard') {
+      if (target.entry.placement !== 'offboard' && target.entry.type !== 'esp32_s3_devkit') {
         errors.push(
           `wire "${id}" ${endName} ("${value}") targets "${term.componentId}" which sits ON the board — only off-board instruments have "ID:PIN" terminals; connect the wire to a free hole in the same strip column as that pin instead`,
         )
@@ -717,7 +717,14 @@ export function validateLayout(input: unknown): ValidationResult {
       const h = parseHole(ref)
       if (h) return netIdForHole(h)
       const t = parseTerminalRef(ref)
-      if (t) return netIdForTerminal(t.componentId, t.pin)
+      if (t) {
+        const target = byId.get(t.componentId)
+        if (target?.entry.type === 'esp32_s3_devkit') {
+          const pin = target.pinHoles?.[target.entry.pins.indexOf(t.pin)]
+          return pin ? netIdForHole(pin) : null
+        }
+        return netIdForTerminal(t.componentId, t.pin)
+      }
       return null
     }
     for (const w of wires) {

@@ -3,6 +3,7 @@
   "name": "ESP32 · TFT RA8875 5 pouces",
   "description": "ESP32-S3 DevKitC-1 câblé sur un écran RA8875 800×480 : alimentation, SPI, reset, attente et tactile I²C.",
   "board": "standard",
+  "boardRows": 2,
   "components": [
     { "id": "ESP1", "type": "esp32_s3_devkit", "at": "b10" },
     { "id": "LCD1", "type": "tft_5in", "params": { "sourceEsp": "ESP1" } }

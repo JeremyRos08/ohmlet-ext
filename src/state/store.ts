@@ -455,7 +455,7 @@ function endpointValid(layout: CircuitLayout, ref: EndpointRef): boolean {
   const comp = layout.components.find((c) => c.id === t.componentId)
   if (!comp) return false
   const entry = getEntry(comp.type)
-  return !!entry && entry.placement === 'offboard' && entry.pins.includes(t.pin)
+  return !!entry && (entry.placement === 'offboard' || entry.type === 'esp32_s3_devkit') && entry.pins.includes(t.pin)
 }
 
 function canonicalEndpoint(ref: EndpointRef): string {

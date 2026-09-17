@@ -354,6 +354,15 @@ function makeEndpointResolver(
     }
     const term = parseTerminalRef(ref)
     if (!term) return null
+    const embedded = layout.components.find(c => c.id === term.componentId && c.type === 'esp32_s3_devkit')
+    if (embedded) {
+      const entry = getEntry(embedded.type)!
+      const holes = componentPinHoles(embedded, entry, boardConfigOf(layout))
+      const h = holes?.[entry.pins.indexOf(term.pin)]
+      if (!h) return null
+      const p = holePosition(h)
+      return { x: p.x, y: 1.24, z: p.z }
+    }
     const rec = offboard.get(term.componentId)
     if (!rec) return null
     const pinIdx = rec.entry.pins.indexOf(term.pin)

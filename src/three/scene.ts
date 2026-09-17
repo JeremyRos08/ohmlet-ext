@@ -2308,6 +2308,20 @@ export class BreadboardScene implements IBreadboardScene {
       routedComponentPose(comp.id) ?? undefined,
     )
     built.object.userData.componentId = comp.id
+    if (comp.type === 'esp32_s3_devkit') {
+      built.pinWorld.forEach((p, i) => {
+        attach[i].copy(p)
+        const post = new THREE.Mesh(m.postGeo, m.postMat)
+        post.visible = false
+        post.position.copy(p)
+        post.scale.set(0.55, 0.7, 0.55)
+        post.userData.terminalRef = `${comp.id}:${entry.pins[i]}`
+        post.updateMatrix()
+        post.matrixAutoUpdate = false
+        m.terminalsGroup.add(post)
+        posts.push(post)
+      })
+    }
     enableShadowCasting(built.object)
     // placed parts commit their matrices once (B2); telemetry/param updaters
     // that pose children are followed by a refresh in applyTelemetryAll, and
@@ -2442,7 +2456,7 @@ export class BreadboardScene implements IBreadboardScene {
     const term = parseTerminalRef(ref)
     if (!term) return null
     const rec = this.components.get(term.componentId)
-    if (!rec || rec.entry.placement !== 'offboard') return null
+    if (!rec || (rec.entry.placement !== 'offboard' && rec.comp.type !== 'esp32_s3_devkit')) return null
     const pinIdx = rec.entry.pins.indexOf(term.pin)
     if (pinIdx < 0) return null
     return rec.attach[pinIdx].clone()
