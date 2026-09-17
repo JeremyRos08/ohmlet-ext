@@ -20,7 +20,7 @@ static void reg(uint8_t address, uint8_t value) {
   packet(0x80, address);
   packet(0x00, value);
 }
-static void word(uint8_t address, uint16_t value) {
+static void writeReg16(uint8_t address, uint16_t value) {
   reg(address, value & 255);
   reg(address + 1, value >> 8);
 }
@@ -28,8 +28,8 @@ static void rect(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t co
   reg(0x63, (color >> 11) & 31);
   reg(0x64, (color >> 5) & 63);
   reg(0x65, color & 31);
-  word(0x91, x0); word(0x93, y0);
-  word(0x95, x1); word(0x97, y1);
+  writeReg16(0x91, x0); writeReg16(0x93, y0);
+  writeReg16(0x95, x1); writeReg16(0x97, y1);
   reg(0x90, 0xB0); // Start filled rectangle.
   delay(20); // Conservative drawing delay for this low-rate diagnostic.
 }
@@ -40,9 +40,9 @@ static void initDisplay() {
   reg(0x04, 0x81); delay(1);
   reg(0x14, 99); reg(0x15, 0); reg(0x16, 3);
   reg(0x17, 3); reg(0x18, 11);
-  word(0x19, 479); word(0x1B, 31); word(0x1D, 22); reg(0x1F, 1);
-  word(0x30, 0); word(0x32, 799);
-  word(0x34, 0); word(0x36, 479);
+  writeReg16(0x19, 479); writeReg16(0x1B, 31); writeReg16(0x1D, 22); reg(0x1F, 1);
+  writeReg16(0x30, 0); writeReg16(0x32, 799);
+  writeReg16(0x34, 0); writeReg16(0x36, 479);
   reg(0x40, 0); // Graphics mode, not the controller's text ROM.
   reg(0x01, 0x80); // Display on.
   reg(0xC7, 1); // GPIOX panel enable.
