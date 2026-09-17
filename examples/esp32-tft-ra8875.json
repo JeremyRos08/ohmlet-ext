@@ -5,7 +5,7 @@
   "board": "standard",
   "components": [
     { "id": "ESP1", "type": "esp32_s3_devkit", "at": "b10" },
-    { "id": "LCD1", "type": "tft_5in" }
+    { "id": "LCD1", "type": "tft_5in", "params": { "sourceEsp": "ESP1" } }
   ],
   "wires": [
     { "id": "w01", "from": "a30", "to": "LCD1:5V", "color": "#ef4444" },

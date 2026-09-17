@@ -21,6 +21,9 @@ describe('Adafruit modules and ESP32 TFT project', () => {
     expect(result.ok, result.errors.join('\n')).toBe(true)
     expect(result.layout?.components).toHaveLength(2)
     expect(result.layout?.wires).toHaveLength(14)
+    const screen = result.layout?.components.find((c) => c.type === 'tft_5in')
+    const source = result.layout?.components.find((c) => c.id === screen?.params?.sourceEsp)
+    expect(source?.type).toBe('esp32_s3_devkit')
   })
 
   it('builds an Adafruit breakout with physical pin posts', () => {

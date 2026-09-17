@@ -1,5 +1,17 @@
 # Exemples Arduino Ohmlet
 
+### Mire animée et écran sans signal
+
+Le sketch TFT dessine sept bandes colorées et une barre verte animée via SPI.
+Après une mise à jour du sketch, recompiler, exporter le binaire puis utiliser
+**Flash another** sur ESP1 : l'ancien binaire stocké ne se met pas à jour seul.
+Dans les propriétés de LCD1, régler **Framebuffer source** sur **ESP1**
+(les anciens montages peuvent avoir conservé **U1**). Le nouvel exemple règle
+explicitement cette association. La console UART0 doit afficher
+`Ohmlet: color bars sent over SPI; animation starting`, puis `RA8875 frame updated`.
+Si elle reste sur `Booting…`, le démarrage du firmware reste à diagnostiquer.
+Cette mire teste l'affichage ; elle ne gère pas encore le tactile.
+
 ## ESP32-S3 + écran TFT RA8875 5 pouces
 
 `esp32-tft-ra8875.ino` cible une **ESP32-S3 Dev Module**. L’erreur
@@ -52,4 +64,3 @@ arduino-cli board listall "ESP32S3 Dev Module"
 
 Pour une Arduino Uno classique, le FQBN est différent :
 `arduino:avr:uno`. Il ne faut pas utiliser ce FQBN pour l’exemple ESP32-S3.
-
