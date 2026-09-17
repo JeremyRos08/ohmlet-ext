@@ -1,3 +1,4 @@
+import '../sim/ssd1306'
 import { CATALOG, type CatalogEntry } from './catalog'
 import '../sim/multimeter-chip'
 import '../sim/esp32-chip'
@@ -135,9 +136,9 @@ const ADAFRUIT_BME280: CatalogEntry = {
 }
 const ADAFRUIT_SSD1306: CatalogEntry = {
   type: 'adafruit_ssd1306_128x64', label: 'Adafruit OLED SSD1306 128×64', category: 'display', placement: 'offboard',
-  pins: ['VIN', '3V3', 'GND', 'SCL_SCK', 'SDA_MOSI', 'RST', 'CS', 'DC'], sim: { kind: 'probe' },
+  pins: ['VIN', '3V3', 'GND', 'SCL_SCK', 'SDA_MOSI', 'RST', 'CS', 'DC'], sim: { kind: 'chip', model: 'ssd1306' },
   visual: { shape: 'adafruit-module' },
-  doc: 'Adafruit 128×64 OLED breakout with I²C and 4-wire SPI header. Connect VIN/3V3/GND and the selected bus pins. The module is available for layout and wiring; framebuffer peripheral behavior is being added to the bus device library.',
+  doc: 'Adafruit 128×64 OLED breakout with I²C and 4-wire SPI header. Connect VIN/3V3/GND and the selected bus pins. SPI display simulation: connect RST, CS, DC, SCK and MOSI. Use slow software SPI; hardware SPI and I2C are not supported by this pin-sampled model.',
 }
 const ADAFRUIT_NEOPIXEL: CatalogEntry = {
   type: 'adafruit_neopixel_ring', label: 'Adafruit NeoPixel Ring 12', category: 'display', placement: 'offboard',

@@ -1,3 +1,4 @@
+import { getSSD1306 } from '../../sim/ssd1306'
 import * as THREE from 'three'
 import type { ComponentInstance } from '../../model/types'
 import type { CatalogEntry } from '../../model/catalog'
@@ -6,6 +7,7 @@ import { cachedGeometry, centroidOf, metal, plastic, topLabel, type BuildResult 
 /** Compact breakout-board visuals used by the Adafruit module catalog. */
 export function buildAdafruitModule(_comp: ComponentInstance, entry: CatalogEntry, pins: THREE.Vector3[]): BuildResult {
   const group = new THREE.Group()
+  let update: BuildResult["update"]
   const c = centroidOf(pins)
   const width = Math.max(5.8, (Math.max(...pins.map(p => p.x)) - Math.min(...pins.map(p => p.x))) + 2.6)
   const depth = entry.type.includes('ssd1306') ? 7.2 : 6.2
@@ -27,6 +29,22 @@ export function buildAdafruitModule(_comp: ComponentInstance, entry: CatalogEntr
     chip.visible = false
     const glass = new THREE.Mesh(new THREE.BoxGeometry(width - 1.2, .16, 3.2), plastic(0x050b14, .15))
     glass.name = 'oled-glass'; glass.position.set(c.x, .41, c.z + 3.8); group.add(glass)
+    const pixels = new Uint8Array(128 * 64 * 4)
+    const texture = new THREE.DataTexture(pixels, 128, 64, THREE.RGBAFormat)
+    texture.magFilter = THREE.NearestFilter
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(6.0, 3.0), new THREE.MeshBasicMaterial({ map: texture, toneMapped: false }))
+    face.name = 'oled-pixels'; face.rotation.x = -Math.PI / 2; face.position.set(c.x, .501, c.z + 3.8); group.add(face)
+    update = () => {
+      const state = getSSD1306(_comp.id)
+      for (let y = 0; y < 64; y++) for (let x = 0; x < 128; x++) {
+        const i = ((63 - y) * 128 + x) * 4
+        const v = state?.pixel(x, y) ? 96 + Math.round(state.contrast * 159 / 255) : 0
+        pixels[i] = v; pixels[i + 1] = v; pixels[i + 2] = v; pixels[i + 3] = 255
+      }
+      texture.needsUpdate = true
+    }
+    update(_comp, entry, null)
+
   }
   if (entry.type === 'analog_control_module') {
     const knob = new THREE.Mesh(new THREE.CylinderGeometry(.85, .85, 1.15, 24), plastic(0x242b32, .5))
@@ -46,5 +64,5 @@ export function buildAdafruitModule(_comp: ComponentInstance, entry: CatalogEntr
   }
   const label = topLabel(entry.label.replace(/^Adafruit\s*/i, ''), Math.min(width - .4, 5.8), .46, { w: 512, h: 80, fg: '#f0f6e8' })
   if (label) { label.position.set(c.x, .335, c.z + 1.65); group.add(label) }
-  return { object: group, pinWorld: pins.map(p => new THREE.Vector3(p.x, .7, p.z)) }
+  return { object: group, update, pinWorld: pins.map(p => new THREE.Vector3(p.x, .7, p.z)) }
 }

@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "name": "Uno + OLED SSD1306 SPI lent",
+  "board": "standard",
+  "components": [
+    {
+      "id": "UNO1",
+      "type": "arduino_uno_r3",
+      "params": {
+        "usbPower": true
+      }
+    },
+    {
+      "id": "OLED1",
+      "type": "adafruit_ssd1306_128x64"
+    }
+  ],
+  "wires": [
+    {
+      "id": "w0",
+      "from": "UNO1:3V3",
+      "to": "OLED1:VIN",
+      "color": "#ef4444"
+    },
+    {
+      "id": "w1",
+      "from": "UNO1:GND1",
+      "to": "OLED1:GND",
+      "color": "#20252a"
+    },
+    {
+      "id": "w2",
+      "from": "UNO1:D13_SCK",
+      "to": "OLED1:SCL_SCK",
+      "color": "#38bdf8"
+    },
+    {
+      "id": "w3",
+      "from": "UNO1:D11_PWM_MOSI",
+      "to": "OLED1:SDA_MOSI",
+      "color": "#38bdf8"
+    },
+    {
+      "id": "w4",
+      "from": "UNO1:D10_PWM_SS",
+      "to": "OLED1:CS",
+      "color": "#38bdf8"
+    },
+    {
+      "id": "w5",
+      "from": "UNO1:D8",
+      "to": "OLED1:DC",
+      "color": "#38bdf8"
+    },
+    {
+      "id": "w6",
+      "from": "UNO1:D9_PWM",
+      "to": "OLED1:RST",
+      "color": "#38bdf8"
+    }
+  ]
+}
